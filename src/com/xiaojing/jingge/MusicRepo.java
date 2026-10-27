@@ -75,6 +75,12 @@ final class MusicRepo {
                 }
                 if (junk(album)) album = null;
                 if (looksLikeRecording(title) || looksLikeRecording(file)) continue;
+                String[] meta = MetaStore.get(ctx, id);
+                if (meta != null) {
+                    if (meta[0] != null) title = meta[0];
+                    artist = meta[1];
+                    album = meta[2];
+                }
                 Uri uri = ContentUris.withAppendedId(
                         MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id);
                 out.add(new Song(id, title, artist, album, uri.toString(), dur, folderOf(path)));
