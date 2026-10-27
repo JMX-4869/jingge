@@ -1,0 +1,293 @@
+    private void showSettings() {
+        final Dialog d = new Dialog(this);
+        LinearLayout box = dialogBox();
+        box.addView(text("设置", 15, Ui.TEXT, true));
+
+        TextView tl = text("主题 · 点一下就用", 11, Ui.DIM, false);
+        tl.setPadding(0, dp(14), 0, dp(4));
+        box.addView(tl);
+
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        for (Theme t : ThemeStore.all(this)) {
+            list.addView(themeRow(d, t));
+        }
+        box.addView(list);
+
+        LinearLayout trow = new LinearLayout(this);
+        trow.setOrientation(LinearLayout.HORIZONTAL);
+        trow.setPadding(0, dp(2), 0, 0);
+        box.addView(trow);
+
+        TextView mine = text("自制主题", 12, Ui.ACCENT, false);
+        mine.setPadding(dp(6), dp(8), dp(16), dp(8));
+        mine.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                d.dismiss();
+                showThemeEditor();
+            }
+        });
+        trow.addView(mine);
+
+        TextView imp = text("导入", 12, Ui.MUTED, false);
+        imp.setPadding(dp(6), dp(8), dp(6), dp(8));
+        imp.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                d.dismiss();
+                showThemeImport();
+            }
+        });
+        trow.addView(imp);
+
+        TextView al = text("AI 写词", 11, Ui.DIM, false);
+        al.setPadding(0, dp(18), 0, dp(6));
+        box.addView(al);
+
+        final EditText base = field(Ai.base(this), "接口地址");
+        final EditText model = field(Ai.model(this), "模型");
+        final EditText key = field(Ai.key(this), "API Key（只存本机）");
+        box.addView(base);
+        box.addView(model);
+        box.addView(key);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.END);
+        row.setPadding(0, dp(10), 0, 0);
+        box.addView(row);
+
+        TextView cancel = text("取消", 13, Ui.MUTED, false);
+        cancel.setPadding(dp(12), dp(8), dp(12), dp(8));
+        cancel.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                d.dismiss();
+            }
+        });
+        row.addView(cancel);
+
+        TextView ok = text("保存", 13, Ui.ACCENT, true);
+        ok.setPadding(dp(16), dp(8), dp(16), dp(8));
+        ok.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Ai.prefs(MainActivity.this).edit()
+                        .putString("ai_base", base.getText().toString().trim())
+                        .putString("ai_model", model.getText().toString().trim())
+                        .putString("ai_key", key.getText().toString().trim())
+                        .apply();
+                d.dismiss();
+            }
+        });
+        row.addView(ok);
+
+        ScrollView sv = new ScrollView(this);
+        sv.addView(box);
+        d.setContentView(sv);
+        dialogWindowTall(d);
+        d.show();
+    }
+
+    private View themeRow(final Dialog d, final Theme t) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(4), dp(8), dp(4), dp(8));
+
+        View sw = new View(this);
+        sw.setBackground(Ui.oval(t.bg));
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(dp(18), dp(18));
+        slp.setMargins(0, 0, dp(10), 0);
+        row.addView(sw, slp);
+
+        View dot = new View(this);
+        dot.setBackground(Ui.oval(t.accent));
+        LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(dp(10), dp(10));
+        dlp.setMargins(0, 0, dp(10), 0);
+        row.addView(dot, dlp);
+
+        boolean cur = ThemeStore.active(this).id.equals(t.id);
+        TextView name = text(t.name + (t.custom() ? "  ·自制" : ""), 13,
+                cur ? Ui.ACCENT : (t.custom() ? Ui.TEXT : Ui.MUTED), cur);
+        row.addView(name, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        if (t.custom()) {
+            TextView del = text("删", 11, Ui.DIM, false);
+            del.setPadding(dp(10), dp(4), dp(2), dp(4));
+            del.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    ThemeStore.delete(MainActivity.this, t.id);
+                    d.dismiss();
+                    showSettings();
+                }
+            });
+            row.addView(del);
+
+            row.setOnLongClickListener(new View.OnLongClickListener() {
+                @Override
+                public boolean onLongClick(View v) {
+                    android.content.ClipboardManager cm =
+                            (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                    if (cm != null) {
+                        cm.setPrimaryClip(android.content.ClipData.newPlainText(
+                                "jingge-theme", ThemeStore.toJson(t).toString()));
+                        Toast.makeText(MainActivity.this,
+                                "主题代码已复制，可发给别人导入", Toast.LENGTH_SHORT).show();
+                    }
+                    return true;
+                }
+            });
+        }
+
+        row.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                ThemeStore.setActive(MainActivity.this, t.id);
+                d.dismiss();
+                recreate();
+            }
+        });
+        return row;
+    }
+
+    private void showThemeEditor() {
+        final Dialog d = new Dialog(this);
+        LinearLayout box = dialogBox();
+        box.addView(text("自制主题", 15, Ui.TEXT, true));
+        TextView tip = text("填 #RRGGBB。面板色按背景自动算。", 11, Ui.DIM, false);
+        tip.setPadding(0, dp(4), 0, dp(10));
+        box.addView(tip);
+
+        final Theme cur = ThemeStore.active(this);
+        final EditText name = field("我的主题", "名字");
+        final EditText bg = field(ThemeStore.hex(cur.bg), "背景");
+        final EditText txt = field(ThemeStore.hex(cur.text), "文字");
+        final EditText mut = field(ThemeStore.hex(cur.muted), "次要文字");
+        final EditText line = field(ThemeStore.hex(cur.line), "分隔线");
+        final EditText acc = field(ThemeStore.hex(cur.accent), "强调色");
+        box.addView(name);
+        box.addView(bg);
+        box.addView(txt);
+        box.addView(mut);
+        box.addView(line);
+        box.addView(acc);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.END);
+        row.setPadding(0, dp(10), 0, 0);
+        box.addView(row);
+
+        TextView cancel = text("取消", 13, Ui.MUTED, false);
+        cancel.setPadding(dp(12), dp(8), dp(12), dp(8));
+        cancel.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                d.dismiss();
+            }
+        });
+        row.addView(cancel);
+
+        TextView ok = text("保存并用", 13, Ui.ACCENT, true);
+        ok.setPadding(dp(16), dp(8), dp(16), dp(8));
+        ok.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String nm = name.getText().toString().trim();
+                if (nm.length() == 0) nm = "我的主题";
+                int cbg = ThemeStore.parseColor(bg.getText().toString(), cur.bg);
+                int ctext = ThemeStore.parseColor(txt.getText().toString(), cur.text);
+                int cmut = ThemeStore.parseColor(mut.getText().toString(), cur.muted);
+                int cline = ThemeStore.parseColor(line.getText().toString(), cur.line);
+                int cacc = ThemeStore.parseColor(acc.getText().toString(), cur.accent);
+                Theme t = new Theme("c:" + nm, nm, cbg, Ui.blend(cbg, ctext, 0.06f),
+                        cline, ctext, cmut, cacc);
+                ThemeStore.save(MainActivity.this, t);
+                ThemeStore.setActive(MainActivity.this, t.id);
+                d.dismiss();
+                recreate();
+            }
+        });
+        row.addView(ok);
+
+        d.setContentView(box);
+        dialogWindowTall(d);
+        d.show();
+    }
+
+    private void showThemeImport() {
+        final Dialog d = new Dialog(this);
+        LinearLayout box = dialogBox();
+        box.addView(text("导入主题", 15, Ui.TEXT, true));
+        TextView tip = text("粘贴主题代码：name / bg / text / muted / line / accent", 11, Ui.DIM, false);
+        tip.setPadding(0, dp(4), 0, dp(10));
+        box.addView(tip);
+
+        final EditText json = new EditText(this);
+        json.setHint("{\"name\":\"夜色\",\"bg\":\"#0A0A0A\",\"text\":\"#EDEDED\",...}");
+        json.setHintTextColor(Ui.DIM);
+        json.setTextColor(Ui.TEXT);
+        json.setTextSize(12);
+        json.setTypeface(android.graphics.Typeface.MONOSPACE);
+        json.setBackground(Ui.round(Ui.PANEL_UP, dp(8)));
+        json.setPadding(dp(10), dp(8), dp(10), dp(8));
+        json.setMinLines(5);
+        json.setGravity(Gravity.TOP | Gravity.START);
+        box.addView(json);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.END);
+        row.setPadding(0, dp(10), 0, 0);
+        box.addView(row);
+
+        TextView cancel = text("取消", 13, Ui.MUTED, false);
+        cancel.setPadding(dp(12), dp(8), dp(12), dp(8));
+        cancel.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                d.dismiss();
+            }
+        });
+        row.addView(cancel);
+
+        TextView ok = text("导入并用", 13, Ui.ACCENT, true);
+        ok.setPadding(dp(16), dp(8), dp(16), dp(8));
+        ok.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                try {
+                    org.json.JSONObject o = new org.json.JSONObject(
+                            json.getText().toString().trim());
+                    Theme t = ThemeStore.fromJson(o);
+                    ThemeStore.save(MainActivity.this, t);
+                    ThemeStore.setActive(MainActivity.this, t.id);
+                    d.dismiss();
+                    recreate();
+                } catch (Throwable e) {
+                    Toast.makeText(MainActivity.this, "主题代码看不懂：" + e.getMessage(),
+                            Toast.LENGTH_LONG).show();
+                }
+            }
+        });
+        row.addView(ok);
+
+        d.setContentView(box);
+        dialogWindowTall(d);
+        d.show();
+    }
+
+    private void dialogWindowTall(Dialog d) {
+        Window w = d.getWindow();
+        if (w == null) return;
+        w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        int wpx = (int) (getResources().getDisplayMetrics().widthPixels * 0.9f);
+        int hpx = (int) (getResources().getDisplayMetrics().heightPixels * 0.74f);
+        w.setLayout(wpx, hpx);
+    }
+
+    private void showAbout() {

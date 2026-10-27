@@ -1,0 +1,156 @@
+    private void showAiDialog() {
+        final Dialog d = new Dialog(this);
+        LinearLayout box = dialogBox();
+        box.addView(text("AI 写词", 15, Ui.TEXT, true));
+        TextView sub = text(Ai.configured(this) ? Ai.model(this) : "还没填 Key，先点「设置」",
+                11, Ui.DIM, false);
+        sub.setPadding(0, dp(4), 0, dp(10));
+        box.addView(sub);
+
+        final EditText hint = new EditText(this);
+        hint.setHint("想要什么感觉？可留空");
+        hint.setHintTextColor(Ui.DIM);
+        hint.setTextColor(Ui.TEXT);
+        hint.setTextSize(13);
+        hint.setBackground(Ui.round(Ui.PANEL_UP, dp(8)));
+        hint.setPadding(dp(10), dp(8), dp(10), dp(8));
+        box.addView(hint);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.END);
+        row.setPadding(0, dp(10), 0, 0);
+        box.addView(row);
+
+        TextView set = text("设置", 13, Ui.MUTED, false);
+        set.setPadding(dp(12), dp(8), dp(12), dp(8));
+        set.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                d.dismiss();
+                showAiSettings();
+            }
+        });
+        row.addView(set);
+
+        final TextView gen = text("生成", 13, Ui.ACCENT, true);
+        gen.setPadding(dp(16), dp(8), dp(16), dp(8));
+        gen.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (!Ai.configured(LyricEditorActivity.this)) {
+                    d.dismiss();
+                    showAiSettings();
+                    return;
+                }
+                gen.setText("生成中…");
+                gen.setEnabled(false);
+                Ai.generate(LyricEditorActivity.this, title, artist,
+                        hint.getText().toString(), new Ai.Callback() {
+                            @Override
+                            public void onText(String text, String error) {
+                                if (d.isShowing()) d.dismiss();
+                                if (error != null) {
+                                    Toast.makeText(LyricEditorActivity.this, error,
+                                            Toast.LENGTH_LONG).show();
+                                    return;
+                                }
+                                memo.setText(text);
+                                Toast.makeText(LyricEditorActivity.this,
+                                        "生成好了，点「打点」对时间", Toast.LENGTH_SHORT).show();
+                            }
+                        });
+            }
+        });
+        row.addView(gen);
+
+        d.setContentView(box);
+        dialogWindow(d);
+        d.show();
+    }
+
+    private void showAiSettings() {
+        final Dialog d = new Dialog(this);
+        LinearLayout box = dialogBox();
+        box.addView(text("AI 设置", 15, Ui.TEXT, true));
+        TextView tip = text("OpenAI 兼容接口，默认 DeepSeek", 11, Ui.DIM, false);
+        tip.setPadding(0, dp(4), 0, dp(10));
+        box.addView(tip);
+
+        final EditText base = field(Ai.base(this), "接口地址");
+        final EditText model = field(Ai.model(this), "模型");
+        final EditText key = field(Ai.key(this), "API Key（只存本机）");
+        box.addView(base);
+        box.addView(model);
+        box.addView(key);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.END);
+        row.setPadding(0, dp(10), 0, 0);
+        box.addView(row);
+
+        TextView cancel = text("取消", 13, Ui.MUTED, false);
+        cancel.setPadding(dp(12), dp(8), dp(12), dp(8));
+        cancel.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                d.dismiss();
+            }
+        });
+        row.addView(cancel);
+
+        TextView ok = text("保存", 13, Ui.ACCENT, true);
+        ok.setPadding(dp(16), dp(8), dp(16), dp(8));
+        ok.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Ai.prefs(LyricEditorActivity.this).edit()
+                        .putString("ai_base", base.getText().toString().trim())
+                        .putString("ai_model", model.getText().toString().trim())
+                        .putString("ai_key", key.getText().toString().trim())
+                        .apply();
+                d.dismiss();
+                Toast.makeText(LyricEditorActivity.this, "存好了", Toast.LENGTH_SHORT).show();
+            }
+        });
+        row.addView(ok);
+
+        d.setContentView(box);
+        dialogWindow(d);
+        d.show();
+    }
+
+    private LinearLayout dialogBox() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setBackgroundColor(Ui.PANEL);
+        box.setPadding(dp(20), dp(18), dp(20), dp(16));
+        return box;
+    }
+
+    private EditText field(String value, String hint) {
+        EditText e = new EditText(this);
+        e.setText(value);
+        e.setHint(hint);
+        e.setHintTextColor(Ui.DIM);
+        e.setTextColor(Ui.TEXT);
+        e.setTextSize(13);
+        e.setSingleLine(true);
+        e.setBackground(Ui.round(Ui.PANEL_UP, dp(8)));
+        e.setPadding(dp(10), dp(8), dp(10), dp(8));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, 0, 0, dp(8));
+        e.setLayoutParams(lp);
+        return e;
+    }
+
+    private void dialogWindow(Dialog d) {
+        Window w = d.getWindow();
+        if (w == null) return;
+        w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        int wpx = (int) (getResources().getDisplayMetrics().widthPixels * 0.88f);
+        w.setLayout(wpx, ViewGroup.LayoutParams.WRAP_CONTENT);
+    }
+

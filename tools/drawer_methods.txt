@@ -1,0 +1,154 @@
+    private void showSettings() {
+        final Dialog d = new Dialog(this);
+        LinearLayout box = dialogBox();
+        box.addView(text("设置", 15, Ui.TEXT, true));
+
+        TextView tl = text("主题", 11, Ui.DIM, false);
+        tl.setPadding(0, dp(14), 0, dp(6));
+        box.addView(tl);
+
+        final String[] modes = {"auto", "dark", "light"};
+        String[] labels = {"跟随系统", "深色", "浅色"};
+        String cur = Ai.prefs(this).getString("theme", "auto");
+        final String[] chosen = {cur};
+        LinearLayout tr = new LinearLayout(this);
+        tr.setOrientation(LinearLayout.HORIZONTAL);
+        box.addView(tr);
+        final TextView[] ts = new TextView[3];
+        for (int i = 0; i < 3; i++) {
+            final int idx = i;
+            boolean on = modes[i].equals(cur);
+            final TextView t = text(labels[i], 13, on ? Ui.ACCENT : Ui.MUTED, false);
+            t.setPadding(dp(12), dp(8), dp(12), dp(8));
+            t.setBackground(Ui.roundStroke(0, on ? Ui.ACCENT : Ui.LINE, dp(8), dp(1)));
+            t.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    chosen[0] = modes[idx];
+                    for (int j = 0; j < ts.length; j++) {
+                        boolean hit = j == idx;
+                        ts[j].setTextColor(hit ? Ui.ACCENT : Ui.MUTED);
+                        ts[j].setBackground(Ui.roundStroke(0,
+                                hit ? Ui.ACCENT : Ui.LINE, dp(8), dp(1)));
+                    }
+                }
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lp.setMargins(0, 0, dp(8), 0);
+            tr.addView(t, lp);
+            ts[i] = t;
+        }
+
+        TextView al = text("AI 写词", 11, Ui.DIM, false);
+        al.setPadding(0, dp(16), 0, dp(6));
+        box.addView(al);
+
+        final EditText base = field(Ai.base(this), "接口地址");
+        final EditText model = field(Ai.model(this), "模型");
+        final EditText key = field(Ai.key(this), "API Key（只存本机）");
+        box.addView(base);
+        box.addView(model);
+        box.addView(key);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.END);
+        row.setPadding(0, dp(10), 0, 0);
+        box.addView(row);
+
+        TextView cancel = text("取消", 13, Ui.MUTED, false);
+        cancel.setPadding(dp(12), dp(8), dp(12), dp(8));
+        cancel.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                d.dismiss();
+            }
+        });
+        row.addView(cancel);
+
+        TextView ok = text("保存", 13, Ui.ACCENT, true);
+        ok.setPadding(dp(16), dp(8), dp(16), dp(8));
+        ok.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String before = Ai.prefs(MainActivity.this).getString("theme", "auto");
+                Ai.prefs(MainActivity.this).edit()
+                        .putString("theme", chosen[0])
+                        .putString("ai_base", base.getText().toString().trim())
+                        .putString("ai_model", model.getText().toString().trim())
+                        .putString("ai_key", key.getText().toString().trim())
+                        .apply();
+                d.dismiss();
+                if (!before.equals(chosen[0])) recreate();
+            }
+        });
+        row.addView(ok);
+
+        d.setContentView(box);
+        dialogWindow(d);
+        d.show();
+    }
+
+    private void showAbout() {
+        final Dialog d = new Dialog(this);
+        LinearLayout box = dialogBox();
+        box.addView(text("鲸歌 " + VER, 15, Ui.TEXT, true));
+        TextView t = text("本地音乐播放器。\n扫描只在本机，不上传；歌词和封面会去公开接口找。",
+                12, Ui.MUTED, false);
+        t.setPadding(0, dp(8), 0, 0);
+        box.addView(t);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.END);
+        row.setPadding(0, dp(10), 0, 0);
+        box.addView(row);
+        TextView ok = text("好", 13, Ui.ACCENT, true);
+        ok.setPadding(dp(16), dp(8), dp(16), dp(8));
+        ok.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                d.dismiss();
+            }
+        });
+        row.addView(ok);
+
+        d.setContentView(box);
+        dialogWindow(d);
+        d.show();
+    }
+
+    private LinearLayout dialogBox() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setBackgroundColor(Ui.PANEL);
+        box.setPadding(dp(20), dp(18), dp(20), dp(16));
+        return box;
+    }
+
+    private EditText field(String value, String hint) {
+        EditText e = new EditText(this);
+        e.setText(value);
+        e.setHint(hint);
+        e.setHintTextColor(Ui.DIM);
+        e.setTextColor(Ui.TEXT);
+        e.setTextSize(13);
+        e.setSingleLine(true);
+        e.setBackground(Ui.round(Ui.PANEL_UP, dp(8)));
+        e.setPadding(dp(10), dp(8), dp(10), dp(8));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, 0, 0, dp(8));
+        e.setLayoutParams(lp);
+        return e;
+    }
+
+    private void dialogWindow(Dialog d) {
+        Window w = d.getWindow();
+        if (w == null) return;
+        w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        int wpx = (int) (getResources().getDisplayMetrics().widthPixels * 0.88f);
+        w.setLayout(wpx, ViewGroup.LayoutParams.WRAP_CONTENT);
+    }
+

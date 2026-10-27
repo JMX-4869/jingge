@@ -14,7 +14,8 @@ import android.view.View;
 public class Icons extends View {
     public static final int PLAY = 1, PAUSE = 2, PREV = 3, NEXT = 4, SHUFFLE = 5,
             REPEAT = 6, REPEAT_ONE = 7, CHEVRON_DOWN = 8, REFRESH = 9, SEARCH = 10,
-            CLOSE = 11, EQ = 12, NOTE = 13, LIST = 14, CHEVRON_LEFT = 15, FOLDER = 16;
+            CLOSE = 11, EQ = 12, NOTE = 13, LIST = 14, CHEVRON_LEFT = 15, FOLDER = 16,
+            THEME = 17;
 
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path path = new Path();
@@ -233,6 +234,17 @@ public class Icons extends View {
                 c.drawLine(4.5f, 7f, 19.5f, 7f, p);
                 c.drawLine(4.5f, 12f, 19.5f, 12f, p);
                 c.drawLine(4.5f, 17f, 19.5f, 17f, p);
+                break;
+            case THEME:
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(1.7f);
+                c.drawCircle(12, 12, 7.4f, p);
+                p.setStyle(Paint.Style.FILL);
+                path.reset();
+                rect.set(4.6f, 4.6f, 19.4f, 19.4f);
+                path.addArc(rect, -90, 180);
+                path.close();
+                c.drawPath(path, p);
                 break;
             case FOLDER:
                 p.setStyle(Paint.Style.FILL);

@@ -94,10 +94,10 @@ public class VinylView extends View {
             c.drawCircle(cx, cy, r, art);
             c.restore();
         } else {
-            p.setColor(0xFF14181F);
+            p.setColor(Ui.PANEL_UP);
             c.drawCircle(cx, cy, r, p);
             if (placeholder.length() > 0) {
-                p.setColor(0x59FFFFFF);
+                p.setColor((Ui.TEXT & 0x00FFFFFF) | 0x59000000);
                 p.setTextSize(r * 0.42f);
                 p.setTextAlign(Paint.Align.CENTER);
                 p.setFakeBoldText(true);

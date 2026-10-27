@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #ECECEE; display: flex; gap: 20px; padding: 20px;
+    font-family: "Roboto", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .phone {
+    width: 360px; height: 740px; background: #FAFAFA; color: #141416;
+    display: flex; flex-direction: column; position: relative; overflow: hidden;
+    zoom: 0.8;
+  }
+  .hintnote { color: #888888; font: 12px/1.6 "Noto Sans SC", sans-serif; width: 160px; }
+
+  /* 顶 */
+  .header { display: flex; align-items: center; padding: 22px 12px 0 20px; }
+  .brand { font-size: 13px; color: #6E6E74; letter-spacing: 1.56px; }
+  .spacer { flex: 1; }
+  .count { font-size: 11px; color: #A2A2AA; margin-right: 2px; }
+  .icon { display: flex; align-items: center; justify-content: center; }
+  .icon svg { display: block; }
+  .rescan { font-size: 11px; color: #6E6E74; padding: 8px; }
+
+  /* 搜索 */
+  .search { margin: 18px 20px 0; height: 38px; display: flex; align-items: center; }
+  .search .hint { font-size: 13px; color: #A2A2AA; margin-left: 10px; }
+  .sline { height: 1px; background: #E2E2E6; margin: 0 20px; }
+
+  /* 列表 */
+  .list { flex: 1; padding: 6px 0; overflow: hidden; }
+  .row { display: flex; align-items: center; padding: 10px 20px; min-height: 56px; }
+  .col { flex: 1; min-width: 0; margin-right: 14px; }
+  .t { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .s { font-size: 11px; color: #6E6E74; padding-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .d { font-size: 11px; color: #A2A2AA; }
+  .row.active .t { color: #0E9D8A; }
+
+  /* 迷你条 */
+  .minibar { height: 60px; border-top: 1px solid #E2E2E6; display: flex; align-items: center; padding: 9px 8px 9px 16px; }
+  .mcover { width: 40px; height: 40px; border-radius: 2px; flex: none;
+    background: linear-gradient(135deg, #2E5A66 0%, #6B4A2E 55%, #1E2A30 100%); }
+  .mtitle { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .martist { font-size: 11px; color: #6E6E74; padding-top: 2px; }
+
+  /* 播放页 */
+  .player { background: #FAFAFA; padding: 0 20px 16px; }
+  .phead { height: 52px; padding-top: 8px; display: flex; align-items: center; }
+  .pcover { height: 196px; display: flex; align-items: center; justify-content: center; }
+  .art { width: 168px; height: 168px; border-radius: 50%;
+    background: linear-gradient(135deg, #2E5A66 0%, #6B4A2E 55%, #1E2A30 100%); }
+  .plyric { flex: 1; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
+  .lrow { height: 36px; line-height: 36px; text-align: center; font-size: 15px;
+    color: #A2A2AA; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
+  .lrow.on { color: #141416; }
+  .ptitle { font-size: 20px; font-weight: 700; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .partist { font-size: 12px; color: #6E6E74; text-align: center; padding-top: 8px; }
+  .pseek { margin-top: 18px; height: 24px; display: flex; align-items: center; position: relative; }
+  .track { position: absolute; left: 0; right: 0; height: 2.2px; background: #E4E4E8; border-radius: 2px; }
+  .fill { position: absolute; left: 0; width: 36%; height: 2.2px; background: #0E9D8A; border-radius: 2px; }
+  .dot { position: absolute; left: 36%; width: 6.4px; height: 6.4px; border-radius: 50%; background: #141416; transform: translateX(-50%); }
+  .ptimes { display: flex; font-size: 11px; color: #A2A2AA; }
+  .ptimes span:last-child { margin-left: auto; }
+  .pctrl { height: 88px; margin-top: 14px; display: flex; align-items: center; }
+  .pctrl > div { flex: 1; display: flex; align-items: center; justify-content: center; }
+  .pctrl .big { flex: none; width: 76px; }
+
+  /* 编辑歌词 */
+  .ehead { height: 56px; display: flex; align-items: center; padding: 0 12px 0 8px; }
+  .etitles { flex: 1; padding-left: 6px; }
+  .et1 { font-size: 14px; }
+  .et2 { font-size: 11px; color: #A2A2AA; }
+  .esave { font-size: 13px; color: #0E9D8A; padding: 10px 12px; }
+  .ectrl { height: 64px; background: #FFFFFF; display: flex; align-items: center; padding: 0 20px; }
+  .etime { flex: 1; font-size: 16px; font-family: Consolas, "Courier New", monospace; padding-left: 12px; }
+  .epunch { font-size: 13px; font-weight: 700; color: #0E9D8A;
+    border: 1px solid rgba(14,157,138,.45); border-radius: 10px; padding: 8px 18px; }
+  .ememo { margin: 8px 16px; background: #FFFFFF; border-radius: 10px; padding: 12px 14px;
+    font-size: 14px; line-height: 1.75; color: #141416; height: 226px; overflow: hidden; }
+  .etip { margin: 0 20px 4px; font-size: 11px; color: #A2A2AA; }
+  .elist { margin: 0 16px 12px; flex: 1; overflow: hidden; }
+  .erow { height: 40px; display: flex; align-items: center; padding: 0 4px; }
+  .et { width: 78px; font-size: 12px; font-family: Consolas, "Courier New", monospace; color: #0E9D8A; }
+  .et.dim { color: #A2A2AA; }
+  .el { flex: 1; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .eh { font-size: 11px; color: #0E9D8A; padding: 8px 10px; }
+
+  .nowbox { padding: 8px 20px 8px; }
+  .nowtitle { font-size: 13px; color: #141416; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nowlyric { font-size: 12px; color: #6E6E74; padding-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .tabs { display: flex; padding: 2px 16px; }
+  .tab { font-size: 13px; color: #6E6E74; padding: 8px 12px; }
+  .tab.on { color: #141416; font-weight: 700; }
+  .chev { color: #A2A2AA; font-size: 18px; }
+  .grow { display: flex; align-items: center; padding: 10px 20px; min-height: 60px; }
+
+  .agrid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 12px; padding: 6px 20px 8px; }
+  .acover { width: 100%; aspect-ratio: 1; border-radius: 4px;
+    background: linear-gradient(135deg, #2E5A66 0%, #6B4A2E 55%, #1E2A30 100%); }
+  .acover.b { background: linear-gradient(135deg, #3A2E5A 0%, #6B2E4A 60%, #20222A 100%); }
+  .acover.c { background: linear-gradient(135deg, #2E5A3A 0%, #5A6B2E 60%, #1E2A22 100%); }
+  .acover.d { background: linear-gradient(135deg, #5A3A2E 0%, #6B5A2E 60%, #2A2620 100%); }
+  .atitle { font-size: 13px; margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .asub { font-size: 11px; color: #6E6E74; margin-top: 2px; }
+
+  .rcover { width: 44px; height: 44px; border-radius: 4px; margin-right: 12px; flex: none;
+    background: linear-gradient(135deg, #2E5A66 0%, #6B4A2E 55%, #1E2A30 100%); }
+  .rcover.b { background: linear-gradient(135deg, #3A2E5A 0%, #6B2E4A 60%, #20222A 100%); }
+  .rcover.c { background: linear-gradient(135deg, #2E5A3A 0%, #5A6B2E 60%, #1E2A22 100%); }
+  .row { padding: 8px 20px; min-height: 60px; }
+  .acover.ph { background: #F0F0F2; display: flex; align-items: center; justify-content: center;
+    color: rgba(20,20,22,.35); font-size: 52px; font-weight: 700; position: relative; }
+  .acover.ph::after { content: ""; position: absolute; top: 12%; right: 12%;
+    width: 8%; height: 8%; border-radius: 50%; background: rgba(14,157,138,.45); }
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="header">
+    <span class="brand">鲸歌</span>
+    <span class="spacer"></span>
+    <span class="rescan">刷新</span>
+  </div>
+
+  <div class="nowbox">
+    <div class="nowtitle">enchanted love (BOF XVI 2020)</div>
+    <div class="nowlyric">I'm enchanted by your love</div>
+  </div>
+
+  <div class="search">
+    <svg width="16" height="16" viewBox="0 0 24 24"><circle cx="10" cy="10" r="5.6" fill="none" stroke="#6E6E74" stroke-width="1.9"/><path d="M14.4 14.4 L19.6 19.6" stroke="#6E6E74" stroke-width="2.2" stroke-linecap="round"/></svg>
+    <span class="hint">搜索</span>
+  </div>
+  <div class="sline"></div>
+
+  <div class="tabs">
+    <span class="tab on">歌曲</span><span class="tab">专辑</span><span class="tab">艺术家</span><span class="tab">文件夹</span>
+  </div>
+
+  <div class="list">
+    <div class="row active">
+      <div class="rcover"></div>
+      <div class="col"><div class="t">enchanted love (BOF XVI 2020)</div><div class="s">linear ring</div></div>
+      <div class="d">2:10</div>
+    </div>
+    <div class="row">
+      <div class="rcover"></div>
+      <div class="col"><div class="t">雨やどり</div><div class="s">米津玄師</div></div>
+      <div class="d">4:12</div>
+    </div>
+    <div class="row">
+      <div class="rcover"></div>
+      <div class="col"><div class="t">Lo Que Siento</div><div class="s">Cuco · Songs 4 u</div></div>
+      <div class="d">3:48</div>
+    </div>
+    <div class="row">
+      <div class="rcover"></div>
+      <div class="col"><div class="t">夜航西飞</div><div class="s">白日密语</div></div>
+      <div class="d">5:02</div>
+    </div>
+    <div class="row">
+      <div class="rcover"></div>
+      <div class="col"><div class="t">November Rain</div><div class="s">Guns N' Roses</div></div>
+      <div class="d">8:57</div>
+    </div>
+    <div class="row">
+      <div class="rcover"></div>
+      <div class="col"><div class="t">一荤一素</div><div class="s">毛不易</div></div>
+      <div class="d">4:05</div>
+    </div>
+  </div>
+
+  <div class="minibar">
+    <div class="mcover"></div>
+    <div class="col"><div class="mtitle">enchanted love (BOF XVI 2020)</div><div class="martist">linear ring</div></div>
+    <span class="icon" style="width:44px;height:44px">
+      <svg width="20" height="20" viewBox="0 0 24 24"><rect x="6.8" y="5.2" width="3.4" height="13.6" rx="1.5" fill="#141416"/><rect x="13.8" y="5.2" width="3.4" height="13.6" rx="1.5" fill="#141416"/></svg>
+    </span>
+    <span class="icon" style="width:40px;height:40px">
+      <svg width="18" height="18" viewBox="0 0 24 24"><path d="M9.4 5 L18.6 12 L9.4 19 Z" fill="#6E6E74"/><rect x="5.1" y="5" width="2.7" height="14" rx="1.2" fill="#6E6E74"/></svg>
+    </span>
+  </div>
+</div>
+
+<div class="phone">
+  <div class="header">
+    <span class="brand">鲸歌</span>
+    <span class="spacer"></span>
+    <span class="rescan">刷新</span>
+  </div>
+
+  <div class="nowbox">
+    <div class="nowtitle">enchanted love (BOF XVI 2020)</div>
+    <div class="nowlyric">I'm enchanted by your love</div>
+  </div>
+
+  <div class="search">
+    <svg width="16" height="16" viewBox="0 0 24 24"><circle cx="10" cy="10" r="5.6" fill="none" stroke="#6E6E74" stroke-width="1.9"/><path d="M14.4 14.4 L19.6 19.6" stroke="#6E6E74" stroke-width="2.2" stroke-linecap="round"/></svg>
+    <span class="hint">搜索</span>
+  </div>
+  <div class="sline"></div>
+
+  <div class="tabs">
+    <span class="tab">歌曲</span><span class="tab on">专辑</span><span class="tab">艺术家</span><span class="tab">文件夹</span>
+  </div>
+
+  <div class="agrid">
+    <div class="acell"><div class="acover"></div><div class="atitle">2ND GALAXY</div><div class="asub">1 首</div></div>
+    <div class="acell"><div class="acover b"></div><div class="atitle">10,000 Hours</div><div class="asub">1 首</div></div>
+    <div class="acell"><div class="acover c"></div><div class="atitle">69乐章</div><div class="asub">1 首</div></div>
+    <div class="acell"><div class="acover d"></div><div class="atitle">25 Years of Golden...</div><div class="asub">1 首</div></div>
+    <div class="acell"><div class="acover ph">叶</div><div class="atitle">叶惠美</div><div class="asub">3 首</div></div>
+    <div class="acell"><div class="acover"></div><div class="atitle">范特西</div><div class="asub">2 首</div></div>
+  </div>
+
+  <div class="minibar">
+    <div class="mcover"></div>
+    <div class="col"><div class="mtitle">enchanted love (BOF XVI 2020)</div><div class="martist">linear ring</div></div>
+    <span class="icon" style="width:44px;height:44px">
+      <svg width="20" height="20" viewBox="0 0 24 24"><rect x="6.8" y="5.2" width="3.4" height="13.6" rx="1.5" fill="#141416"/><rect x="13.8" y="5.2" width="3.4" height="13.6" rx="1.5" fill="#141416"/></svg>
+    </span>
+    <span class="icon" style="width:40px;height:40px">
+      <svg width="18" height="18" viewBox="0 0 24 24"><path d="M9.4 5 L18.6 12 L9.4 19 Z" fill="#6E6E74"/><rect x="5.1" y="5" width="2.7" height="14" rx="1.2" fill="#6E6E74"/></svg>
+    </span>
+  </div>
+</div>
+
+<div class="phone player">
+  <div class="phead">
+    <span class="icon" style="width:44px;height:44px">
+      <svg width="20" height="20" viewBox="0 0 24 24"><path d="M6.5 9.5 L12 15 L17.5 9.5" fill="none" stroke="#141416" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </span>
+  </div>
+
+  <div class="pcover"><div class="art"></div></div>
+
+  <div class="plyric">
+    <div class="lrow">故事的小黃花</div>
+    <div class="lrow">從出生那年就飄著</div>
+    <div class="lrow on">童年的盪鞦韆</div>
+    <div class="lrow">隨記憶一直晃到現在</div>
+    <div class="lrow">Re So So Si Do Si La</div>
+    <div class="lrow">吹著前奏望著天空</div>
+    <div class="lrow">我想起花瓣試著掉落</div>
+  </div>
+
+  <div class="ptitle">晴天</div>
+  <div class="partist">周杰伦</div>
+
+  <div class="pseek">
+    <div class="track"></div>
+    <div class="fill"></div>
+    <div class="dot"></div>
+  </div>
+  <div class="ptimes"><span>2:14</span><span>6:30</span></div>
+
+  <div class="pctrl">
+    <div>
+      <svg width="21" height="21" viewBox="0 0 24 24"><rect x="3.6" y="5.6" width="16.8" height="12.8" rx="3.4" fill="none" stroke="#A2A2AA" stroke-width="1.8"/><path d="M17.3 10.3 L20.6 12 L17.3 13.7 Z" fill="#A2A2AA"/><path d="M6.7 10.3 L3.4 12 L6.7 13.7 Z" fill="#A2A2AA"/><text x="12" y="15" font-size="8.4" font-weight="700" text-anchor="middle" fill="#A2A2AA">1</text></svg>
+    </div>
+    <div>
+      <svg width="22" height="22" viewBox="0 0 24 24"><path d="M14.6 5 L5.4 12 L14.6 19 Z" fill="#141416"/><rect x="16.2" y="5" width="2.7" height="14" rx="1.2" fill="#141416"/></svg>
+    </div>
+    <div class="big">
+      <svg width="33" height="33" viewBox="0 0 24 24"><path d="M8.2 5.4 L19.2 12 L8.2 18.6 Z" fill="#141416"/></svg>
+    </div>
+    <div>
+      <svg width="22" height="22" viewBox="0 0 24 24"><path d="M9.4 5 L18.6 12 L9.4 19 Z" fill="#141416"/><rect x="5.1" y="5" width="2.7" height="14" rx="1.2" fill="#141416"/></svg>
+    </div>
+    <div>
+      <svg width="21" height="21" viewBox="0 0 24 24"><path d="M4.5 7 H19.5 M4.5 12 H19.5 M4.5 17 H19.5" stroke="#A2A2AA" stroke-width="1.9" stroke-linecap="round"/></svg>
+    </div>
+  </div>
+</div>
+
+<div class="phone editor">
+  <div class="ehead">
+    <span class="icon" style="width:44px;height:44px">
+      <svg width="18" height="18" viewBox="0 0 24 24"><path d="M15 6.5 L9 12 L15 17.5" fill="none" stroke="#141416" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </span>
+    <div class="etitles"><div class="et1">编辑歌词</div><div class="et2">晴天</div></div>
+    <span class="esave">保存</span>
+  </div>
+
+  <div class="ectrl">
+    <span class="icon" style="width:44px;height:44px">
+      <svg width="20" height="20" viewBox="0 0 24 24"><path d="M8.2 5.4 L19.2 12 L8.2 18.6 Z" fill="#141416"/></svg>
+    </span>
+    <span class="etime">02:14.50</span>
+    <span class="epunch">打点</span>
+  </div>
+
+  <div class="ememo">故事的小黃花<br>從出生那年就飄著<br>童年的盪鞦韆<br>隨記憶一直晃到現在<br>Re So So Si Do Si La<br>吹著前奏望著天空</div>
+
+  <div class="etip">听到一句就点一下，记下当前时间</div>
+
+  <div class="elist">
+    <div class="erow"><span class="et">00:00.00</span><span class="el">故事的小黃花</span><span class="eh">打点</span></div>
+    <div class="erow"><span class="et">00:12.40</span><span class="el">從出生那年就飄著</span><span class="eh">打点</span></div>
+    <div class="erow"><span class="et">00:25.80</span><span class="el">童年的盪鞦韆</span><span class="eh">打点</span></div>
+    <div class="erow"><span class="et dim">--:--</span><span class="el">隨記憶一直晃到現在</span><span class="eh">打点</span></div>
+    <div class="erow"><span class="et dim">--:--</span><span class="el">Re So So Si Do Si La</span><span class="eh">打点</span></div>
+    <div class="erow"><span class="et dim">--:--</span><span class="el">吹著前奏望著天空</span><span class="eh">打点</span></div>
+  </div>
+</div>
+
+
+
+</body>
+</html>

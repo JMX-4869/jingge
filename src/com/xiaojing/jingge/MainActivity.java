@@ -28,12 +28,16 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.provider.Settings;
+import android.app.Dialog;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.LruCache;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.widget.AbsListView;
@@ -43,6 +47,8 @@ import android.widget.FrameLayout;
 import android.widget.GridView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.RelativeLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -63,6 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
+    private static final String VER = "0.13";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -76,6 +83,11 @@ public class MainActivity extends Activity implements MusicService.Listener {
     private GroupAdapter groupAdapter;
     private AlbumAdapter albumAdapter;
     private LinearLayout tabs, backRow;
+    private FrameLayout drawerScrim;
+    private LinearLayout drawer;
+    private int drawerW;
+    private boolean drawerOpen;
+    private final TextView[] navItems = new TextView[4];
     private TextView backTitle;
     private final TextView[] tabViews = new TextView[4];
     private GridView grid;
@@ -130,17 +142,20 @@ public class MainActivity extends Activity implements MusicService.Listener {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        Ui.apply(this);
         try {
             getWindow().setStatusBarColor(Ui.BG);
             getWindow().setNavigationBarColor(Ui.BG);
+            if (!Ui.isDark()) {
+                int f = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                if (android.os.Build.VERSION.SDK_INT >= 26) {
+                    f |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+                }
+                getWindow().getDecorView().setSystemUiVisibility(f);
+            }
         } catch (Throwable ignored) {
         }
         restoreId = getSharedPreferences(PREFS, MODE_PRIVATE).getLong("lastId", -1);
-        try {
-            getWindow().setLayout(WindowManager.LayoutParams.MATCH_PARENT,
-                    WindowManager.LayoutParams.MATCH_PARENT);
-        } catch (Throwable ignored) {
-        }
 
         setContentView(buildUi());
 
@@ -150,7 +165,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
         grid.setAdapter(albumAdapter);
         listView.setAdapter(adapter);
         listView.setEmptyView(emptyBox);
-        updateTabs();
+        updateNav();
         listView.setOnItemClickListener(new android.widget.AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(android.widget.AdapterView<?> p, View v, int pos, long id) {
@@ -252,6 +267,10 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     @Override
     public void onBackPressed() {
+        if (drawerOpen) {
+            closeDrawer();
+            return;
+        }
         if (playerOpen) {
             closePlayer();
             return;
@@ -742,25 +761,390 @@ public class MainActivity extends Activity implements MusicService.Listener {
         return t;
     }
 
+    private void showSettings() {
+        final Dialog d = new Dialog(this);
+        LinearLayout box = dialogBox();
+        box.addView(text("设置", 15, Ui.TEXT, true));
+
+        TextView tl = text("主题 · 点一下就用", 11, Ui.DIM, false);
+        tl.setPadding(0, dp(14), 0, dp(4));
+        box.addView(tl);
+
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        for (Theme t : ThemeStore.all(this)) {
+            list.addView(themeRow(d, t));
+        }
+        box.addView(list);
+
+        LinearLayout trow = new LinearLayout(this);
+        trow.setOrientation(LinearLayout.HORIZONTAL);
+        trow.setPadding(0, dp(2), 0, 0);
+        box.addView(trow);
+
+        TextView mine = text("自制主题", 12, Ui.ACCENT, false);
+        mine.setPadding(dp(6), dp(8), dp(16), dp(8));
+        mine.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                d.dismiss();
+                showThemeEditor();
+            }
+        });
+        trow.addView(mine);
+
+        TextView imp = text("导入", 12, Ui.MUTED, false);
+        imp.setPadding(dp(6), dp(8), dp(6), dp(8));
+        imp.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                d.dismiss();
+                showThemeImport();
+            }
+        });
+        trow.addView(imp);
+
+        TextView al = text("AI 写词", 11, Ui.DIM, false);
+        al.setPadding(0, dp(18), 0, dp(6));
+        box.addView(al);
+
+        final EditText base = field(Ai.base(this), "接口地址");
+        final EditText model = field(Ai.model(this), "模型");
+        final EditText key = field(Ai.key(this), "API Key（只存本机）");
+        box.addView(base);
+        box.addView(model);
+        box.addView(key);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.END);
+        row.setPadding(0, dp(10), 0, 0);
+        box.addView(row);
+
+        TextView cancel = text("取消", 13, Ui.MUTED, false);
+        cancel.setPadding(dp(12), dp(8), dp(12), dp(8));
+        cancel.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                d.dismiss();
+            }
+        });
+        row.addView(cancel);
+
+        TextView ok = text("保存", 13, Ui.ACCENT, true);
+        ok.setPadding(dp(16), dp(8), dp(16), dp(8));
+        ok.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Ai.prefs(MainActivity.this).edit()
+                        .putString("ai_base", base.getText().toString().trim())
+                        .putString("ai_model", model.getText().toString().trim())
+                        .putString("ai_key", key.getText().toString().trim())
+                        .apply();
+                d.dismiss();
+            }
+        });
+        row.addView(ok);
+
+        ScrollView sv = new ScrollView(this);
+        sv.addView(box);
+        d.setContentView(sv);
+        dialogWindowTall(d);
+        d.show();
+    }
+
+    private View themeRow(final Dialog d, final Theme t) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(4), dp(8), dp(4), dp(8));
+
+        View sw = new View(this);
+        sw.setBackground(Ui.oval(t.bg));
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(dp(18), dp(18));
+        slp.setMargins(0, 0, dp(10), 0);
+        row.addView(sw, slp);
+
+        View dot = new View(this);
+        dot.setBackground(Ui.oval(t.accent));
+        LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(dp(10), dp(10));
+        dlp.setMargins(0, 0, dp(10), 0);
+        row.addView(dot, dlp);
+
+        boolean cur = ThemeStore.active(this).id.equals(t.id);
+        TextView name = text(t.name + (t.custom() ? "  ·自制" : ""), 13,
+                cur ? Ui.ACCENT : (t.custom() ? Ui.TEXT : Ui.MUTED), cur);
+        row.addView(name, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        if (t.custom()) {
+            TextView del = text("删", 11, Ui.DIM, false);
+            del.setPadding(dp(10), dp(4), dp(2), dp(4));
+            del.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    ThemeStore.delete(MainActivity.this, t.id);
+                    d.dismiss();
+                    showSettings();
+                }
+            });
+            row.addView(del);
+
+            row.setOnLongClickListener(new View.OnLongClickListener() {
+                @Override
+                public boolean onLongClick(View v) {
+                    android.content.ClipboardManager cm =
+                            (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                    if (cm != null) {
+                        cm.setPrimaryClip(android.content.ClipData.newPlainText(
+                                "jingge-theme", ThemeStore.toJson(t).toString()));
+                        Toast.makeText(MainActivity.this,
+                                "主题代码已复制，可发给别人导入", Toast.LENGTH_SHORT).show();
+                    }
+                    return true;
+                }
+            });
+        }
+
+        row.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                ThemeStore.setActive(MainActivity.this, t.id);
+                d.dismiss();
+                recreate();
+            }
+        });
+        return row;
+    }
+
+    private void showThemeEditor() {
+        final Dialog d = new Dialog(this);
+        LinearLayout box = dialogBox();
+        box.addView(text("自制主题", 15, Ui.TEXT, true));
+        TextView tip = text("填 #RRGGBB。面板色按背景自动算。", 11, Ui.DIM, false);
+        tip.setPadding(0, dp(4), 0, dp(10));
+        box.addView(tip);
+
+        final Theme cur = ThemeStore.active(this);
+        final EditText name = field("我的主题", "名字");
+        final EditText bg = field(ThemeStore.hex(cur.bg), "背景");
+        final EditText txt = field(ThemeStore.hex(cur.text), "文字");
+        final EditText mut = field(ThemeStore.hex(cur.muted), "次要文字");
+        final EditText line = field(ThemeStore.hex(cur.line), "分隔线");
+        final EditText acc = field(ThemeStore.hex(cur.accent), "强调色");
+        box.addView(name);
+        box.addView(bg);
+        box.addView(txt);
+        box.addView(mut);
+        box.addView(line);
+        box.addView(acc);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.END);
+        row.setPadding(0, dp(10), 0, 0);
+        box.addView(row);
+
+        TextView cancel = text("取消", 13, Ui.MUTED, false);
+        cancel.setPadding(dp(12), dp(8), dp(12), dp(8));
+        cancel.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                d.dismiss();
+            }
+        });
+        row.addView(cancel);
+
+        TextView ok = text("保存并用", 13, Ui.ACCENT, true);
+        ok.setPadding(dp(16), dp(8), dp(16), dp(8));
+        ok.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String nm = name.getText().toString().trim();
+                if (nm.length() == 0) nm = "我的主题";
+                int cbg = ThemeStore.parseColor(bg.getText().toString(), cur.bg);
+                int ctext = ThemeStore.parseColor(txt.getText().toString(), cur.text);
+                int cmut = ThemeStore.parseColor(mut.getText().toString(), cur.muted);
+                int cline = ThemeStore.parseColor(line.getText().toString(), cur.line);
+                int cacc = ThemeStore.parseColor(acc.getText().toString(), cur.accent);
+                Theme t = new Theme("c:" + nm, nm, cbg, Ui.blend(cbg, ctext, 0.06f),
+                        cline, ctext, cmut, cacc);
+                ThemeStore.save(MainActivity.this, t);
+                ThemeStore.setActive(MainActivity.this, t.id);
+                d.dismiss();
+                recreate();
+            }
+        });
+        row.addView(ok);
+
+        d.setContentView(box);
+        dialogWindowTall(d);
+        d.show();
+    }
+
+    private void showThemeImport() {
+        final Dialog d = new Dialog(this);
+        LinearLayout box = dialogBox();
+        box.addView(text("导入主题", 15, Ui.TEXT, true));
+        TextView tip = text("粘贴主题代码：name / bg / text / muted / line / accent", 11, Ui.DIM, false);
+        tip.setPadding(0, dp(4), 0, dp(10));
+        box.addView(tip);
+
+        final EditText json = new EditText(this);
+        json.setHint("{\"name\":\"夜色\",\"bg\":\"#0A0A0A\",\"text\":\"#EDEDED\",...}");
+        json.setHintTextColor(Ui.DIM);
+        json.setTextColor(Ui.TEXT);
+        json.setTextSize(12);
+        json.setTypeface(android.graphics.Typeface.MONOSPACE);
+        json.setBackground(Ui.round(Ui.PANEL_UP, dp(8)));
+        json.setPadding(dp(10), dp(8), dp(10), dp(8));
+        json.setMinLines(5);
+        json.setGravity(Gravity.TOP | Gravity.START);
+        box.addView(json);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.END);
+        row.setPadding(0, dp(10), 0, 0);
+        box.addView(row);
+
+        TextView cancel = text("取消", 13, Ui.MUTED, false);
+        cancel.setPadding(dp(12), dp(8), dp(12), dp(8));
+        cancel.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                d.dismiss();
+            }
+        });
+        row.addView(cancel);
+
+        TextView ok = text("导入并用", 13, Ui.ACCENT, true);
+        ok.setPadding(dp(16), dp(8), dp(16), dp(8));
+        ok.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                try {
+                    org.json.JSONObject o = new org.json.JSONObject(
+                            json.getText().toString().trim());
+                    Theme t = ThemeStore.fromJson(o);
+                    ThemeStore.save(MainActivity.this, t);
+                    ThemeStore.setActive(MainActivity.this, t.id);
+                    d.dismiss();
+                    recreate();
+                } catch (Throwable e) {
+                    Toast.makeText(MainActivity.this, "主题代码看不懂：" + e.getMessage(),
+                            Toast.LENGTH_LONG).show();
+                }
+            }
+        });
+        row.addView(ok);
+
+        d.setContentView(box);
+        dialogWindowTall(d);
+        d.show();
+    }
+
+    private void dialogWindowTall(Dialog d) {
+        Window w = d.getWindow();
+        if (w == null) return;
+        w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        int wpx = (int) (getResources().getDisplayMetrics().widthPixels * 0.9f);
+        int hpx = (int) (getResources().getDisplayMetrics().heightPixels * 0.74f);
+        w.setLayout(wpx, hpx);
+    }
+
+    private void showAbout() {
+
+        final Dialog d = new Dialog(this);
+        LinearLayout box = dialogBox();
+        box.addView(text("鲸歌 " + VER, 15, Ui.TEXT, true));
+        TextView t = text("本地音乐播放器。\n扫描只在本机，不上传；歌词和封面会去公开接口找。",
+                12, Ui.MUTED, false);
+        t.setPadding(0, dp(8), 0, 0);
+        box.addView(t);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.END);
+        row.setPadding(0, dp(10), 0, 0);
+        box.addView(row);
+        TextView ok = text("好", 13, Ui.ACCENT, true);
+        ok.setPadding(dp(16), dp(8), dp(16), dp(8));
+        ok.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                d.dismiss();
+            }
+        });
+        row.addView(ok);
+
+        d.setContentView(box);
+        dialogWindow(d);
+        d.show();
+    }
+
+    private LinearLayout dialogBox() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setBackgroundColor(Ui.PANEL);
+        box.setPadding(dp(20), dp(18), dp(20), dp(16));
+        return box;
+    }
+
+    private EditText field(String value, String hint) {
+        EditText e = new EditText(this);
+        e.setText(value);
+        e.setHint(hint);
+        e.setHintTextColor(Ui.DIM);
+        e.setTextColor(Ui.TEXT);
+        e.setTextSize(13);
+        e.setSingleLine(true);
+        e.setBackground(Ui.round(Ui.PANEL_UP, dp(8)));
+        e.setPadding(dp(10), dp(8), dp(10), dp(8));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, 0, 0, dp(8));
+        e.setLayoutParams(lp);
+        return e;
+    }
+
+    private void dialogWindow(Dialog d) {
+        Window w = d.getWindow();
+        if (w == null) return;
+        w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        int wpx = (int) (getResources().getDisplayMetrics().widthPixels * 0.88f);
+        w.setLayout(wpx, ViewGroup.LayoutParams.WRAP_CONTENT);
+    }
+
     private View buildUi() {
         final FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Ui.BG);
+        // 兜底：万一窗口被量成 wrap，至少还是满屏高
+        root.setMinimumHeight(getResources().getDisplayMetrics().heightPixels);
 
-        final LinearLayout page = new LinearLayout(this);
-        page.setOrientation(LinearLayout.VERTICAL);
-        FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
-        plp.gravity = Gravity.TOP | Gravity.START;
-        root.addView(page, plp);
+        final RelativeLayout page = new RelativeLayout(this);
+        page.setMinimumHeight(getResources().getDisplayMetrics().heightPixels);
+        root.addView(page, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        // 顶部整块固定从 0 开始，列表用相对规则填中间，不靠 weight
+        final LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.VERTICAL);
+        top.setId(View.generateViewId());
+        RelativeLayout.LayoutParams topLp = new RelativeLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        topLp.addRule(RelativeLayout.ALIGN_PARENT_TOP);
+        top.setGravity(Gravity.TOP);
+        page.addView(top, topLp);
 
         // 顶：小字标 + 数量 + 刷新。标题不抢内容。
         final LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(20), dp(22), dp(12), 0);
-        header.setMinimumHeight(dp(60));
-        page.addView(header, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        header.setMinimumHeight(dp(56));
+        top.addView(header, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(56)));
 
         // 正在播放 + 当前歌词：列表页顶上的一小块，点它进播放页。
         nowBox = new LinearLayout(this);
@@ -773,7 +1157,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
             }
         });
         nowBox.setVisibility(View.GONE);
-        page.addView(nowBox, new LinearLayout.LayoutParams(
+        top.addView(nowBox, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         nowTitle = text("", 13, Ui.TEXT, false);
@@ -787,7 +1171,18 @@ public class MainActivity extends Activity implements MusicService.Listener {
         nowLyric.setPadding(0, dp(4), 0, 0);
         nowBox.addView(nowLyric);
 
-        TextView brand = text("鲸歌", 13, Ui.MUTED, false);
+        Icons menu = new Icons(this).icon(Icons.LIST).color(Ui.MUTED).ratio(0.5f);
+        menu.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                openDrawer();
+            }
+        });
+        LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(dp(36), dp(36));
+        mlp.setMargins(0, 0, dp(6), 0);
+        header.addView(menu, mlp);
+
+        TextView brand = text("鲸歌 " + VER, 13, Ui.MUTED, false);
         brand.setLetterSpacing(0.12f);
         header.addView(brand);
 
@@ -809,9 +1204,9 @@ public class MainActivity extends Activity implements MusicService.Listener {
         LinearLayout searchWrap = new LinearLayout(this);
         searchWrap.setOrientation(LinearLayout.VERTICAL);
         LinearLayout.LayoutParams swp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(39));
         swp.setMargins(dp(20), dp(18), dp(20), 0);
-        page.addView(searchWrap, swp);
+        top.addView(searchWrap, swp);
 
         LinearLayout searchRow = new LinearLayout(this);
         searchRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -853,36 +1248,14 @@ public class MainActivity extends Activity implements MusicService.Listener {
         searchWrap.addView(searchLine, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(1)));
 
-        // 分类：歌曲 / 专辑 / 艺术家 / 文件夹
-        tabs = new LinearLayout(this);
-        tabs.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        tlp.setMargins(dp(16), dp(2), dp(16), dp(2));
-        page.addView(tabs, tlp);
-        String[] names = {"歌曲", "专辑", "艺术家", "文件夹"};
-        for (int i = 0; i < names.length; i++) {
-            final int idx = i;
-            TextView t = text(names[i], 13, Ui.MUTED, false);
-            t.setPadding(dp(12), dp(8), dp(12), dp(8));
-            t.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    setMode(idx);
-                }
-            });
-            tabs.addView(t);
-            tabViews[i] = t;
-        }
-
         backRow = new LinearLayout(this);
         backRow.setOrientation(LinearLayout.HORIZONTAL);
         backRow.setGravity(Gravity.CENTER_VERTICAL);
         backRow.setPadding(dp(12), 0, dp(20), 0);
         backRow.setVisibility(View.GONE);
         backRow.setMinimumHeight(dp(40));
-        page.addView(backRow, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        top.addView(backRow, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(40)));
         Icons back = new Icons(this).icon(Icons.CHEVRON_LEFT).color(Ui.TEXT).ratio(0.44f);
         back.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -896,17 +1269,29 @@ public class MainActivity extends Activity implements MusicService.Listener {
         backTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
         backRow.addView(backTitle);
 
+        // 迷你条先建，列表要"在它上面"
+        miniBar = buildMini();
+        miniBar.setId(View.generateViewId());
+        miniBar.setMinimumHeight(dp(60));
+        RelativeLayout.LayoutParams mbLp = new RelativeLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        mbLp.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+        page.addView(miniBar, mbLp);
+
         // 列表 + 空状态
         FrameLayout listBox = new FrameLayout(this);
-        page.addView(listBox, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        RelativeLayout.LayoutParams lbLp = new RelativeLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        lbLp.addRule(RelativeLayout.BELOW, top.getId());
+        lbLp.addRule(RelativeLayout.ABOVE, miniBar.getId());
+        page.addView(listBox, lbLp);
 
         listView = new ListView(this);
         listView.setBackgroundColor(Color.TRANSPARENT);
         listView.setDivider(null);
         listView.setDividerHeight(0);
         listView.setVerticalScrollBarEnabled(false);
-        listView.setSelector(new ColorDrawable(0x14FFFFFF));
+        listView.setSelector(new ColorDrawable(Ui.RIPPLE));
         listView.setPadding(0, dp(6), 0, dp(6));
         listBox.addView(listView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
@@ -933,10 +1318,78 @@ public class MainActivity extends Activity implements MusicService.Listener {
         listBox.addView(grid, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        miniBar = buildMini();
-        miniBar.setMinimumHeight(dp(60));
-        page.addView(miniBar, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        // 侧边栏
+        drawerW = (int) (getResources().getDisplayMetrics().widthPixels * 0.76f);
+        drawerScrim = new FrameLayout(this);
+        drawerScrim.setBackgroundColor(0x99000000);
+        drawerScrim.setVisibility(View.GONE);
+        drawerScrim.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                closeDrawer();
+            }
+        });
+        root.addView(drawerScrim, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        drawer = new LinearLayout(this);
+        drawer.setOrientation(LinearLayout.VERTICAL);
+        drawer.setBackgroundColor(Ui.BG);
+        drawer.setPadding(0, dp(28), 0, 0);
+        FrameLayout.LayoutParams drp = new FrameLayout.LayoutParams(
+                drawerW, ViewGroup.LayoutParams.MATCH_PARENT);
+        drp.gravity = Gravity.START;
+        root.addView(drawer, drp);
+        drawer.setTranslationX(-drawerW);
+
+        TextView dtitle = text("鲸歌 " + VER, 15, Ui.TEXT, false);
+        dtitle.setPadding(dp(24), dp(8), dp(24), dp(18));
+        drawer.addView(dtitle);
+
+        String[] cats = {"歌曲", "专辑", "艺术家", "文件夹"};
+        for (int i = 0; i < cats.length; i++) {
+            final int idx = i;
+            TextView item = text(cats[i], 15, Ui.MUTED, false);
+            item.setPadding(dp(24), dp(14), dp(24), dp(14));
+            item.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    closeDrawer();
+                    setMode(idx);
+                }
+            });
+            drawer.addView(item);
+            navItems[i] = item;
+        }
+
+        View dline = new View(this);
+        dline.setBackgroundColor(Ui.LINE);
+        LinearLayout.LayoutParams dlp2 = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(1));
+        dlp2.setMargins(dp(24), dp(14), dp(24), dp(8));
+        drawer.addView(dline, dlp2);
+
+        TextView settingsItem = text("设置", 15, Ui.MUTED, false);
+        settingsItem.setPadding(dp(24), dp(14), dp(24), dp(14));
+        settingsItem.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                closeDrawer();
+                showSettings();
+            }
+        });
+        drawer.addView(settingsItem);
+
+        TextView aboutItem = text("关于", 15, Ui.MUTED, false);
+        aboutItem.setPadding(dp(24), dp(14), dp(24), dp(14));
+        aboutItem.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                closeDrawer();
+                showAbout();
+            }
+        });
+        drawer.addView(aboutItem);
 
         playerPage = buildPlayer();
         root.addView(playerPage, new FrameLayout.LayoutParams(
@@ -1247,7 +1700,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
         currentGroup = null;
         tabs.setVisibility(View.VISIBLE);
         backRow.setVisibility(View.GONE);
-        updateTabs();
+        updateNav();
         applyQuery(search.getText().toString());
     }
 
@@ -1255,7 +1708,6 @@ public class MainActivity extends Activity implements MusicService.Listener {
         if (g == null) return;
         currentGroup = g;
         mode = MODE_GROUP;
-        tabs.setVisibility(View.GONE);
         backRow.setVisibility(View.VISIBLE);
         backTitle.setText(g.title);
         search.setText("");
@@ -1268,19 +1720,41 @@ public class MainActivity extends Activity implements MusicService.Listener {
         currentGroup = null;
         tabs.setVisibility(View.VISIBLE);
         backRow.setVisibility(View.GONE);
-        updateTabs();
+        updateNav();
         search.setText("");
         applyQuery("");
         listView.setSelection(0);
     }
 
-    private void updateTabs() {
-        for (int i = 0; i < tabViews.length; i++) {
-            if (tabViews[i] == null) continue;
+    private void updateNav() {
+        for (int i = 0; i < navItems.length; i++) {
+            if (navItems[i] == null) continue;
             boolean on = mode == i;
-            tabViews[i].setTextColor(on ? Ui.TEXT : Ui.MUTED);
-            tabViews[i].setTypeface(on ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
+            navItems[i].setTextColor(on ? Ui.TEXT : Ui.MUTED);
+            navItems[i].setTypeface(on ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
         }
+    }
+
+    private void openDrawer() {
+        if (drawerOpen) return;
+        drawerOpen = true;
+        drawerScrim.setVisibility(View.VISIBLE);
+        drawerScrim.setAlpha(0f);
+        drawerScrim.animate().alpha(1f).setDuration(160).start();
+        drawer.animate().translationX(0f).setDuration(200).start();
+    }
+
+    private void closeDrawer() {
+        if (!drawerOpen) return;
+        drawerOpen = false;
+        drawer.animate().translationX(-drawerW).setDuration(180).start();
+        drawerScrim.animate().alpha(0f).setDuration(160)
+                .withEndAction(new Runnable() {
+                    @Override
+                    public void run() {
+                        drawerScrim.setVisibility(View.GONE);
+                    }
+                }).start();
     }
 
     private class SongAdapter extends BaseAdapter {
@@ -1607,12 +2081,12 @@ public class MainActivity extends Activity implements MusicService.Listener {
                 p.setShader(null);
             } else {
                 p.setShader(null);
-                p.setColor(0xFF14181F);
+                p.setColor(Ui.PANEL_UP);
                 c.drawRoundRect(r, radius, radius, p);
                 int m = Math.min(w, h);
                 // 没有封面时用歌名首字 + 一颗青点，这是鲸歌自己的占位
                 if (placeholder.length() > 0) {
-                    p.setColor(0x59FFFFFF);
+                    p.setColor((Ui.TEXT & 0x00FFFFFF) | 0x59000000);
                     p.setTextSize(m * 0.36f);
                     p.setTextAlign(Paint.Align.CENTER);
                     p.setFakeBoldText(true);

@@ -53,3 +53,23 @@ fi
 "$BT/apksigner.bat" verify $OUT/jingge.apk
 echo "OK -> $OUT/jingge.apk"
 ls -la $OUT/jingge.apk
+
+# [8] 自动提交并同步到 GitHub（没有网络/凭证就跳过，不影响构建）
+if git rev-parse --git-dir >/dev/null 2>&1; then
+  VER=$(grep -o 'versionName="[^"]*"' AndroidManifest.xml | head -1 | cut -d'"' -f2)
+  git add -A 2>/dev/null
+  if ! git diff --cached --quiet 2>/dev/null; then
+    git -c user.name=JMX-4869 -c user.email=JMX-4869@users.noreply.github.com       commit -q -m "v$VER" 2>/dev/null || true
+    git tag -f "v$VER" >/dev/null 2>&1 || true
+    echo "committed v$VER"
+  fi
+  if git remote get-url origin >/dev/null 2>&1; then
+    if git push -q origin HEAD --follow-tags 2>/dev/null; then
+      echo "synced -> github"
+    else
+      echo "github 没推上去（网络/凭证），本地已提交 v$VER"
+    fi
+  else
+    echo "还没配 origin（仓库没建），本地已提交 v$VER"
+  fi
+fi
