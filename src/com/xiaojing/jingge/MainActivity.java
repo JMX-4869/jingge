@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.24";
+    private static final String VER = "0.25";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -620,7 +620,8 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private void showSongMenu(final Song s) {
         if (s == null) return;
-        final String[] items = {"换封面", "清除自定义封面", "重新找封面", "编辑歌词"};
+        final String[] items = {"编辑歌曲信息", "恢复原来的名字", "换封面",
+                "清除自定义封面", "重新找封面", "编辑歌词"};
         new AlertDialog.Builder(this)
                 .setTitle(s.title)
                 .setItems(items, new DialogInterface.OnClickListener() {
@@ -628,17 +629,24 @@ public class MainActivity extends Activity implements MusicService.Listener {
                     public void onClick(DialogInterface d, int which) {
                         switch (which) {
                             case 0:
-                                pickCover(s);
+                                editMeta(s);
                                 break;
                             case 1:
+                                MetaStore.remove(MainActivity.this, s.id);
+                                scan();
+                                break;
+                            case 2:
+                                pickCover(s);
+                                break;
+                            case 3:
                                 CoverStore.deleteUser(MainActivity.this, s.id);
                                 resetCoverIfCurrent(s.id);
                                 break;
-                            case 2:
+                            case 4:
                                 CoverStore.deleteCache(MainActivity.this, s.id);
                                 resetCoverIfCurrent(s.id);
                                 break;
-                            case 3:
+                            case 5:
                                 editLyric(s);
                                 break;
                             default:
@@ -647,6 +655,67 @@ public class MainActivity extends Activity implements MusicService.Listener {
                     }
                 })
                 .show();
+    }
+
+    private void editMeta(final Song s) {
+        final Dialog d = new Dialog(this);
+        LinearLayout box = dialogBox();
+        box.addView(text("编辑歌曲信息", 15, Ui.TEXT, true));
+
+        final EditText tTitle = field(s.title == null ? "" : s.title, "歌名");
+        final EditText tArtist = field(s.artist == null ? "" : s.artist, "歌手");
+        final EditText tAlbum = field(s.album == null ? "" : s.album, "专辑");
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(10);
+        box.addView(tTitle, lp);
+        LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp2.topMargin = dp(8);
+        box.addView(tArtist, lp2);
+        LinearLayout.LayoutParams lp3 = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp3.topMargin = dp(8);
+        box.addView(tAlbum, lp3);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.END);
+        row.setPadding(0, dp(12), 0, 0);
+        box.addView(row);
+
+        TextView cancel = text("取消", 13, Ui.MUTED, false);
+        cancel.setPadding(dp(12), dp(8), dp(12), dp(8));
+        cancel.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                d.dismiss();
+            }
+        });
+        row.addView(cancel);
+
+        TextView ok = text("保存", 13, Ui.ACCENT, true);
+        ok.setPadding(dp(16), dp(8), dp(16), dp(8));
+        ok.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String nt = tTitle.getText().toString().trim();
+                if (nt.length() == 0) {
+                    Toast.makeText(MainActivity.this, "歌名不能空", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                MetaStore.put(MainActivity.this, s.id, nt,
+                        tArtist.getText().toString().trim(),
+                        tAlbum.getText().toString().trim());
+                d.dismiss();
+                scan();
+            }
+        });
+        row.addView(ok);
+
+        d.setContentView(box);
+        dialogWindow(d);
+        d.show();
     }
 
     private void resetCoverIfCurrent(long id) {

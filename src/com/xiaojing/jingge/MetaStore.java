@@ -36,6 +36,10 @@ final class MetaStore {
                         + (album == null ? "" : album)).apply();
     }
 
+    static void remove(Context c, long id) {
+        prefs(c).edit().remove(Long.toString(id)).apply();
+    }
+
     static int count(Context c) {
         return prefs(c).getAll().size();
     }
