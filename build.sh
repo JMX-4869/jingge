@@ -73,3 +73,8 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
     echo "还没配 origin（仓库没建），本地已提交 v$VER"
   fi
 fi
+
+# [9] 把 APK 传到 GitHub Release（没有网络就跳过）
+if [ -x publish_release.sh ] || [ -f publish_release.sh ]; then
+  bash publish_release.sh || echo "release 没传上去（网络/凭证）"
+fi
