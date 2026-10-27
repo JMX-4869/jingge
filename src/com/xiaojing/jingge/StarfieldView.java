@@ -25,6 +25,7 @@ public class StarfieldView extends View {
     private RadialGradient g1;
     private RadialGradient g2;
     private long last;
+    private long lastFrame;
     private boolean running;
     private float density = 1f;
 
@@ -47,6 +48,17 @@ public class StarfieldView extends View {
         running = true;
         last = 0;
         postInvalidateOnAnimation();
+    }
+
+    @Override
+    protected void onWindowVisibilityChanged(int v) {
+        super.onWindowVisibilityChanged(v);
+        running = v == VISIBLE;
+        if (running) {
+            last = 0;
+            lastFrame = 0;
+            postInvalidateOnAnimation();
+        }
     }
 
     @Override
@@ -91,6 +103,10 @@ public class StarfieldView extends View {
             c.drawCircle(x[i] * w, y[i] * h, Math.max(1f, r[i] * density * 0.5f), p);
         }
 
-        if (running) postInvalidateOnAnimation();
+        // 30fps 够用了，别每帧都画
+        if (running && now - lastFrame >= 33) {
+            lastFrame = now;
+            postInvalidateOnAnimation();
+        }
     }
 }
