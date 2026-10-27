@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.27";
+    private static final String VER = "0.28";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -94,6 +94,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
     private TextView transBtn;
     private boolean showTrans = true;
     private BatchMatch batchMatch;
+    private android.animation.ValueAnimator barPulse;
     private NameMatch nameMatch;
     private Dialog batchDialog;
     private Lyric curLyric;
@@ -1814,7 +1815,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
         LinearLayout p = new LinearLayout(this);
         p.setOrientation(LinearLayout.VERTICAL);
         p.setPadding(dp(20), 0, dp(20), dp(16));
-        p.setBackgroundColor(Ui.BG);
+        if (Ui.STYLE != Ui.STYLE_GLOW) p.setBackgroundColor(Ui.BG);
 
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
@@ -2070,6 +2071,24 @@ public class MainActivity extends Activity implements MusicService.Listener {
         }
     }
 
+    private void startBarPulse() {
+        if (Ui.STYLE != Ui.STYLE_GLOW) return;
+        if (barPulse != null) return;
+        barPulse = android.animation.ValueAnimator.ofFloat(1f, 0.35f, 1f);
+        barPulse.setDuration(2000);
+        barPulse.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+        barPulse.addUpdateListener(new android.animation.ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(android.animation.ValueAnimator a) {
+                float v = (Float) a.getAnimatedValue();
+                for (int i = 0; i < navBars.length; i++) {
+                    if (navBars[i] != null) navBars[i].setAlpha(i == mode ? v : 1f);
+                }
+            }
+        });
+        barPulse.start();
+    }
+
     private void openDrawer() {
         if (drawerOpen) return;
         drawerOpen = true;
@@ -2077,11 +2096,16 @@ public class MainActivity extends Activity implements MusicService.Listener {
         drawerScrim.setAlpha(0f);
         drawerScrim.animate().alpha(1f).setDuration(160).start();
         drawer.animate().translationX(0f).setDuration(200).start();
+        startBarPulse();
     }
 
     private void closeDrawer() {
         if (!drawerOpen) return;
         drawerOpen = false;
+        if (barPulse != null) {
+            barPulse.cancel();
+            barPulse = null;
+        }
         drawer.animate().translationX(-drawerW).setDuration(180).start();
         drawerScrim.animate().alpha(0f).setDuration(160)
                 .withEndAction(new Runnable() {

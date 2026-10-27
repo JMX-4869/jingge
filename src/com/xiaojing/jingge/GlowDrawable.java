@@ -8,6 +8,7 @@ import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
+import android.os.SystemClock;
 
 /** 熵光风格：暗底 + 细网格 + 外发光描边。 */
 final class GlowDrawable extends Drawable {
@@ -30,6 +31,7 @@ final class GlowDrawable extends Drawable {
 
     @Override
     public void draw(Canvas c) {
+        float pulse = 0.5f + 0.5f * (float) Math.sin(SystemClock.uptimeMillis() / 900.0);
         Rect b = getBounds();
         rf.set(b);
         path.reset();
@@ -40,7 +42,7 @@ final class GlowDrawable extends Drawable {
             p.setStyle(Paint.Style.STROKE);
             for (int i = 3; i >= 1; i--) {
                 p.setStrokeWidth(i * 1.8f);
-                p.setColor(alpha(accent, 3 + i * 4));
+                p.setColor(alpha(accent, (int) ((3 + i * 4) * (0.55f + 0.75f * pulse))));
                 c.drawRoundRect(rf, radius, radius, p);
             }
         }
@@ -67,9 +69,16 @@ final class GlowDrawable extends Drawable {
         if (border) {
             p.setStyle(Paint.Style.STROKE);
             p.setStrokeWidth(1.2f);
-            p.setColor(alpha(accent, 90));
+            p.setColor(alpha(accent, (int) (60 + 70 * pulse)));
             c.drawRoundRect(rf, radius, radius, p);
         }
+    }
+
+    @Override
+    public boolean setVisible(boolean visible, boolean restart) {
+        boolean changed = super.setVisible(visible, restart);
+        if (visible) invalidateSelf();
+        return changed;
     }
 
     private static int alpha(int color, int a) {

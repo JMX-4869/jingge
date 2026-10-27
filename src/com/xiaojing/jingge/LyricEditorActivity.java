@@ -89,7 +89,16 @@ public class LyricEditorActivity extends Activity {
             finish();
             return;
         }
-        setContentView(build());
+        if (Ui.STYLE == Ui.STYLE_GLOW) {
+            android.widget.FrameLayout wrap = new android.widget.FrameLayout(this);
+            wrap.addView(new StarfieldView(this), new android.widget.FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            wrap.addView(build(), new android.widget.FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            setContentView(wrap);
+        } else {
+            setContentView(build());
+        }
         if (postAi) {
             memo.post(new Runnable() {
                 @Override
