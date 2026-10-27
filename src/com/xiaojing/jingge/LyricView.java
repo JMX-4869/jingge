@@ -12,14 +12,20 @@ import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 歌词：当前行亮、自动滚到中间，点一行跳到那句。 */
+/** 歌词：当前行亮、自动滚到中间，点一行跳到那句。非中文歌每行下面带中文译文。 */
 public class LyricView extends ScrollView {
     public interface OnSeek {
         void onSeek(int ms);
     }
 
+    private static final class Row {
+        LinearLayout root;
+        TextView main;
+        TextView trans;
+    }
+
     private final LinearLayout box;
-    private final List<TextView> rows = new ArrayList<TextView>();
+    private final List<Row> rows = new ArrayList<Row>();
     private final List<Integer> times = new ArrayList<Integer>();
     private int current = -2;
     private int lastPos;
@@ -44,7 +50,7 @@ public class LyricView extends ScrollView {
         reset();
         TextView t = new TextView(getContext());
         t.setText(msg);
-        t.setTextSize(13);
+        t.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 13);
         t.setTextColor(Ui.DIM);
         t.setGravity(Gravity.CENTER);
         t.setPadding(0, Ui.dp(getContext(), 30), 0, Ui.dp(getContext(), 30));
@@ -59,10 +65,10 @@ public class LyricView extends ScrollView {
             return;
         }
         if (!l.synced) {
-            for (String line : l.plain) addRow(line, -1);
+            for (String line : l.plain) addRow(line, null, -1);
             return;
         }
-        for (Lyric.Line line : l.lines) addRow(line.text, line.timeMs);
+        for (Lyric.Line line : l.lines) addRow(line.text, line.trans, line.timeMs);
         post(new Runnable() {
             @Override
             public void run() {
@@ -86,10 +92,15 @@ public class LyricView extends ScrollView {
         if (idx == current) return;
         current = idx;
         for (int i = 0; i < rows.size(); i++) {
-            rows.get(i).setTextColor(i == idx ? Ui.TEXT : Ui.DIM);
+            Row r = rows.get(i);
+            boolean on = i == idx;
+            r.main.setTextColor(on ? Ui.TEXT : Ui.DIM);
+            if (r.trans != null) {
+                r.trans.setTextColor(on ? Ui.MUTED : Ui.blend(Ui.DIM, Ui.BG, 0.35f));
+            }
         }
         if (idx < rows.size()) {
-            View v = rows.get(idx);
+            View v = rows.get(idx).root;
             smoothScrollTo(0, Math.max(0,
                     v.getTop() - (getHeight() - v.getHeight()) / 2));
         }
@@ -104,7 +115,13 @@ public class LyricView extends ScrollView {
         scrollTo(0, 0);
     }
 
-    private void addRow(String text, final int timeMs) {
+    private void addRow(String text, String trans, final int timeMs) {
+        LinearLayout root = new LinearLayout(getContext());
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setGravity(Gravity.CENTER);
+        root.setPadding(Ui.dp(getContext(), 4), Ui.dp(getContext(), 5),
+                Ui.dp(getContext(), 4), Ui.dp(getContext(), 5));
+
         TextView t = new TextView(getContext());
         t.setText(text);
         t.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 15);
@@ -112,12 +129,28 @@ public class LyricView extends ScrollView {
         t.setGravity(Gravity.CENTER);
         t.setSingleLine(true);
         t.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        t.setPadding(Ui.dp(getContext(), 4), 0, Ui.dp(getContext(), 4), 0);
-        t.setMinHeight(Ui.dp(getContext(), 36));
-        t.setLayoutParams(new LinearLayout.LayoutParams(
+        t.setMinHeight(Ui.dp(getContext(), 26));
+        root.addView(t, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        TextView tr = null;
+        if (trans != null && trans.trim().length() > 0
+                && !trans.trim().equals(text.trim())) {
+            tr = new TextView(getContext());
+            tr.setText(trans);
+            tr.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12);
+            tr.setTextColor(Ui.blend(Ui.DIM, Ui.BG, 0.35f));
+            tr.setGravity(Gravity.CENTER);
+            tr.setSingleLine(true);
+            tr.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            tlp.topMargin = Ui.dp(getContext(), 3);
+            root.addView(tr, tlp);
+        }
+
         if (timeMs >= 0) {
-            t.setOnClickListener(new OnClickListener() {
+            root.setOnClickListener(new OnClickListener() {
                 @Override
                 public void onClick(View v) {
                     if (onSeek != null) onSeek.onSeek(timeMs);
@@ -125,7 +158,13 @@ public class LyricView extends ScrollView {
             });
             times.add(timeMs);
         }
-        rows.add(t);
-        box.addView(t);
+
+        Row row = new Row();
+        row.root = root;
+        row.main = t;
+        row.trans = tr;
+        rows.add(row);
+        box.addView(root, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
     }
 }

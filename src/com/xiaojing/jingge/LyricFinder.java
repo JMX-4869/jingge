@@ -135,7 +135,8 @@ final class LyricFinder {
                 + mid + "&format=json&nobase64=1", "https://y.qq.com/", 5000, 8000);
         if (lj == null) return null;
         JSONObject jo = json(lj);
-        return jo == null ? null : Lyric.parse(jo.optString("lyric", ""));
+        if (jo == null) return null;
+        return Lyric.parse(jo.optString("lyric", ""), jo.optString("trans", ""));
     }
 
     // ───────────── 网易云 ─────────────
@@ -175,7 +176,10 @@ final class LyricFinder {
         if (lj == null) return null;
         JSONObject jo = json(lj);
         JSONObject lrc = jo == null ? null : jo.optJSONObject("lrc");
-        return lrc == null ? null : Lyric.parse(lrc.optString("lyric", ""));
+        if (lrc == null) return null;
+        JSONObject tl = jo.optJSONObject("tlyric");
+        String trans = tl == null ? "" : tl.optString("lyric", "");
+        return Lyric.parse(lrc.optString("lyric", ""), trans);
     }
 
     // ───────────── LRCLIB ─────────────
