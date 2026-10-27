@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.32";
+    private static final String VER = "0.33";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -848,6 +848,9 @@ public class MainActivity extends Activity implements MusicService.Listener {
     }
 
     private void resetCoverIfCurrent(long id) {
+        smallCovers.remove(id);
+        albumCovers.remove(id);
+        if (adapter != null) adapter.notifyDataSetChanged();
         if (coverId != id) return;
         coverId = -1;
         refreshCover(svc != null ? svc.currentSong() : null);
@@ -899,6 +902,9 @@ public class MainActivity extends Activity implements MusicService.Listener {
                 ui.post(new Runnable() {
                     @Override
                     public void run() {
+                        smallCovers.remove(id);
+                        albumCovers.remove(id);
+                        if (adapter != null) adapter.notifyDataSetChanged();
                         if (svc != null && svc.currentSong() != null
                                 && svc.currentSong().id == id) {
                             coverId = -1;
@@ -2556,7 +2562,8 @@ public class MainActivity extends Activity implements MusicService.Listener {
         coverPool.submit(new Runnable() {
             @Override
             public void run() {
-                Bitmap bm = MusicRepo.cover(MainActivity.this, s, px);
+                Bitmap bm = CoverStore.loadUser(MainActivity.this, key, px);
+                if (bm == null) bm = MusicRepo.cover(MainActivity.this, s, px);
                 if (bm == null) bm = CoverStore.loadCache(MainActivity.this, key, px);
                 final Bitmap found = bm;
                 ui.post(new Runnable() {
