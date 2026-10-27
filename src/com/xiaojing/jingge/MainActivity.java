@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.25";
+    private static final String VER = "0.26";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -853,7 +853,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
         srow.setOrientation(LinearLayout.HORIZONTAL);
         box.addView(srow);
         srow.addView(styleChip(d, "极简", Ui.STYLE_MINIMAL, Ui.style(this)));
-        srow.addView(styleChip(d, "熵光矩阵", Ui.STYLE_GLOW, Ui.style(this)));
+        srow.addView(styleChip(d, "群星", Ui.STYLE_GLOW, Ui.style(this)));
 
         TextView tl = text("主题 · 点一下就用", 11, Ui.DIM, false);
         tl.setPadding(0, dp(14), 0, dp(4));
@@ -1374,6 +1374,11 @@ public class MainActivity extends Activity implements MusicService.Listener {
         else root.setBackgroundColor(Ui.BG);
         // 兜底：万一窗口被量成 wrap，至少还是满屏高
         root.setMinimumHeight(getResources().getDisplayMetrics().heightPixels);
+
+        if (Ui.STYLE == Ui.STYLE_GLOW) {
+            root.addView(new StarfieldView(this), new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        }
 
         final RelativeLayout page = new RelativeLayout(this);
         page.setMinimumHeight(getResources().getDisplayMetrics().heightPixels);
