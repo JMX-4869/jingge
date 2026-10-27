@@ -475,10 +475,9 @@ public class LyricEditorActivity extends Activity {
         box.addView(tip);
 
         final EditText base = field(Ai.base(this), "接口地址");
-        final EditText model = field(Ai.model(this), "模型");
         final EditText key = field(Ai.key(this), "API Key（只存本机）");
         box.addView(base);
-        box.addView(model);
+        box.addView(ModelPicker.button(this));
         box.addView(key);
 
         LinearLayout row = new LinearLayout(this);
@@ -504,7 +503,6 @@ public class LyricEditorActivity extends Activity {
             public void onClick(View v) {
                 Ai.prefs(LyricEditorActivity.this).edit()
                         .putString("ai_base", base.getText().toString().trim())
-                        .putString("ai_model", model.getText().toString().trim())
                         .putString("ai_key", key.getText().toString().trim())
                         .apply();
                 d.dismiss();

@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.18";
+    private static final String VER = "0.19";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -815,10 +815,9 @@ public class MainActivity extends Activity implements MusicService.Listener {
         box.addView(al);
 
         final EditText base = field(Ai.base(this), "接口地址");
-        final EditText model = field(Ai.model(this), "模型");
         final EditText key = field(Ai.key(this), "API Key（只存本机）");
         box.addView(base);
-        box.addView(model);
+        box.addView(ModelPicker.button(this));
         box.addView(key);
 
         LinearLayout row = new LinearLayout(this);
@@ -844,7 +843,6 @@ public class MainActivity extends Activity implements MusicService.Listener {
             public void onClick(View v) {
                 Ai.prefs(MainActivity.this).edit()
                         .putString("ai_base", base.getText().toString().trim())
-                        .putString("ai_model", model.getText().toString().trim())
                         .putString("ai_key", key.getText().toString().trim())
                         .apply();
                 d.dismiss();

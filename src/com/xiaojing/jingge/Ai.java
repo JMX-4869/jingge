@@ -23,6 +23,10 @@ final class Ai {
         void onText(String text, String error);
     }
 
+    interface ModelsCb {
+        void onModels(java.util.List<String> models, String error);
+    }
+
     static final String DEFAULT_BASE = "https://api.deepseek.com/v1";
     static final String DEFAULT_MODEL = "deepseek-chat";
 
@@ -33,6 +37,68 @@ final class Ai {
 
     static SharedPreferences prefs(Context c) {
         return c.getSharedPreferences("jingge", Context.MODE_PRIVATE);
+    }
+
+    /** GET {base}/models，拉服务端实际的模型名。 */
+    static void listModels(final Context ctx, final ModelsCb cb) {
+        final String k = key(ctx);
+        if (k == null || k.trim().length() < 8) {
+            cb.onModels(null, "还没填 API Key");
+            return;
+        }
+        final String url = base(ctx) + "/models";
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String err = null;
+                java.util.List<String> out = null;
+                HttpURLConnection c = null;
+                try {
+                    c = (HttpURLConnection) new URL(url).openConnection();
+                    c.setConnectTimeout(12000);
+                    c.setReadTimeout(30000);
+                    c.setRequestProperty("Authorization", "Bearer " + k);
+                    c.setRequestProperty("Accept", "application/json");
+                    int code = c.getResponseCode();
+                    InputStream in = code >= 200 && code < 300 ? c.getInputStream() : c.getErrorStream();
+                    ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                    if (in != null) {
+                        byte[] buf = new byte[4096];
+                        int n;
+                        while ((n = in.read(buf)) != -1) bos.write(buf, 0, n);
+                        in.close();
+                    }
+                    String body = new String(bos.toByteArray(), "UTF-8");
+                    if (code < 200 || code >= 300) {
+                        err = "HTTP " + code;
+                    } else {
+                        JSONArray arr = new JSONObject(body).optJSONArray("data");
+                        if (arr == null) {
+                            err = "返回里没有 data";
+                        } else {
+                            out = new java.util.ArrayList<String>();
+                            for (int i = 0; i < arr.length(); i++) {
+                                JSONObject o = arr.optJSONObject(i);
+                                String id = o == null ? "" : o.optString("id", "");
+                                if (id.length() > 0) out.add(id);
+                            }
+                        }
+                    }
+                } catch (Throwable t) {
+                    err = t.getClass().getSimpleName();
+                } finally {
+                    if (c != null) c.disconnect();
+                }
+                final String fe = err;
+                final java.util.List<String> fo = out;
+                MAIN.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        cb.onModels(fo, fe);
+                    }
+                });
+            }
+        }).start();
     }
 
     static String base(Context c) {
