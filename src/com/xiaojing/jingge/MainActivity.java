@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.33";
+    private static final String VER = "0.34";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -631,7 +631,10 @@ public class MainActivity extends Activity implements MusicService.Listener {
             @Override
             public void onClick(View v) {
                 d.dismiss();
-                v.postDelayed(act, 140);
+                // 用主线程 Handler：Dialog 关掉后那个 View 已经脱窗，
+                // View.postDelayed 会进 RunQueue，永远等不到 attach
+                new android.os.Handler(android.os.Looper.getMainLooper())
+                        .postDelayed(act, 150);
             }
         });
         return t;
