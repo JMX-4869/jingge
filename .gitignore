@@ -1,0 +1,5 @@
+build/
+debug.jks
+.idea/
+*.iml
+.DS_Store
