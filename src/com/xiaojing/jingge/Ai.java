@@ -151,6 +151,78 @@ final class Ai {
         return sb.toString();
     }
 
+    /** 通用一问一答，给"AI 造主题"用。 */
+    static void ask(final Context ctx, final String system, final String user,
+                    final double temp, final Callback cb) {
+        final String k = key(ctx);
+        if (k.length() < 12) {
+            cb.onText(null, "还没填 API Key");
+            return;
+        }
+        final String url = base(ctx) + "/chat/completions";
+        final String m = model(ctx);
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String out = null;
+                String err = null;
+                HttpURLConnection c = null;
+                try {
+                    JSONObject body = new JSONObject();
+                    body.put("model", m);
+                    body.put("temperature", temp);
+                    body.put("max_tokens", 500);
+                    JSONArray msgs = new JSONArray();
+                    msgs.put(new JSONObject().put("role", "system").put("content", system));
+                    msgs.put(new JSONObject().put("role", "user").put("content", user));
+                    body.put("messages", msgs);
+
+                    c = (HttpURLConnection) new URL(url).openConnection();
+                    c.setConnectTimeout(15000);
+                    c.setReadTimeout(60000);
+                    c.setRequestMethod("POST");
+                    c.setDoOutput(true);
+                    c.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+                    c.setRequestProperty("Authorization", "Bearer " + k);
+                    OutputStream os = c.getOutputStream();
+                    os.write(body.toString().getBytes("UTF-8"));
+                    os.close();
+
+                    int code = c.getResponseCode();
+                    InputStream in = code == 200 ? c.getInputStream() : c.getErrorStream();
+                    ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                    if (in != null) {
+                        byte[] buf = new byte[4096];
+                        int n;
+                        while ((n = in.read(buf)) != -1) bos.write(buf, 0, n);
+                        in.close();
+                    }
+                    String resp = new String(bos.toByteArray(), "UTF-8");
+                    if (code != 200) {
+                        err = "接口 " + code + "：" + shorten(resp);
+                    } else {
+                        JSONObject o = new JSONObject(resp);
+                        out = o.getJSONArray("choices").getJSONObject(0)
+                                .getJSONObject("message").getString("content");
+                        if (out == null || out.trim().length() == 0) err = "模型回了空内容";
+                    }
+                } catch (Throwable t) {
+                    err = "连不上：" + t.getMessage();
+                } finally {
+                    if (c != null) c.disconnect();
+                }
+                final String fOut = out;
+                final String fErr = err;
+                MAIN.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        cb.onText(fOut, fErr);
+                    }
+                });
+            }
+        }).start();
+    }
+
     static void generate(final Context ctx, final String title, final String artist,
                          final String hint, final boolean withTrans, final Callback cb) {
         final String k = key(ctx);
