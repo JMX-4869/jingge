@@ -29,26 +29,31 @@ final class CoverFinder {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                Bitmap bm = null;
-                try {
-                    String mid = albumMid(s);
-                    if (mid != null) {
-                        bm = Http.image(
-                                "https://y.gtimg.cn/music/photo_new/T002R500x500M000"
-                                        + mid + ".jpg", "https://y.qq.com/", 640);
-                    }
-                } catch (Throwable ignored) {
-                }
-                if (bm != null) CoverStore.saveCache(app, s.id, bm);
-                final Bitmap out = bm;
+                final Bitmap bm = fetchNow(app, s);
                 MAIN.post(new Runnable() {
                     @Override
                     public void run() {
-                        cb.onCover(out);
+                        cb.onCover(bm);
                     }
                 });
             }
         }, "cover-find").start();
+    }
+
+    /** 同步版，给一键补全用。 */
+    static Bitmap fetchNow(Context ctx, Song s) {
+        Context app = ctx.getApplicationContext();
+        Bitmap bm = null;
+        try {
+            String mid = albumMid(s);
+            if (mid != null) {
+                bm = Http.image("https://y.gtimg.cn/music/photo_new/T002R500x500M000"
+                        + mid + ".jpg", "https://y.qq.com/", 640);
+            }
+        } catch (Throwable ignored) {
+        }
+        if (bm != null) CoverStore.saveCache(app, s.id, bm);
+        return bm;
     }
 
     private static String albumMid(Song s) throws Exception {

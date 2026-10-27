@@ -22,6 +22,10 @@ final class CoverStore {
         return new File(dir(c, user), (user ? "u_" : "c_") + id + ".jpg");
     }
 
+    static boolean hasCache(Context c, long id) {
+        return file(c, id, false).exists();
+    }
+
     static boolean hasUser(Context c, long id) {
         return file(c, id, true).exists();
     }

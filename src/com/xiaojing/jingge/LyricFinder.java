@@ -37,44 +37,60 @@ final class LyricFinder {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                Lyric l = null;
-                String src = null;
-
-                String local = LyricStore.read(app, s.id);
-                if (local != null) {
-                    l = Lyric.parse(local);
-                    if (l != null) src = "本地";
-                }
-                if (l == null) {
-                    try {
-                        l = fromQQ(s);
-                        if (l != null) src = "QQ音乐";
-                    } catch (Throwable ignored) {
-                    }
-                }
-                if (l == null) {
-                    try {
-                        l = fromNetease(s);
-                        if (l != null) src = "网易云";
-                    } catch (Throwable ignored) {
-                    }
-                }
-                if (l == null) {
-                    try {
-                        l = fromLrclib(s);
-                        if (l != null) src = "LRCLIB";
-                    } catch (Throwable ignored) {
-                    }
-                }
-                if (l != null) {
-                    synchronized (CACHE) {
-                        if (CACHE.size() > 60) CACHE.clear();
-                        CACHE.put(s.id, l);
-                    }
-                }
-                deliver(cb, l, src);
+                String[] src = new String[1];
+                Lyric l = fetchNow(app, s, src);
+                deliver(cb, l, src[0]);
             }
         }, "lyric").start();
+    }
+
+    /** 同步版，给一键补全用。 */
+    static Lyric fetchNow(Context ctx, Song s, String[] srcOut) {
+        Context app = ctx.getApplicationContext();
+        Lyric l = null;
+        String src = null;
+
+        String local = LyricStore.read(app, s.id);
+        if (local != null) {
+            l = Lyric.parse(local);
+            if (l != null) src = "本地";
+        }
+        if (l == null) {
+            String auto = LyricStore.readAuto(app, s.id);
+            if (auto != null) {
+                l = Lyric.parse(auto);
+                if (l != null) src = "已缓存";
+            }
+        }
+        if (l == null) {
+            try {
+                l = fromQQ(s);
+                if (l != null) src = "QQ音乐";
+            } catch (Throwable ignored) {
+            }
+        }
+        if (l == null) {
+            try {
+                l = fromNetease(s);
+                if (l != null) src = "网易云";
+            } catch (Throwable ignored) {
+            }
+        }
+        if (l == null) {
+            try {
+                l = fromLrclib(s);
+                if (l != null) src = "LRCLIB";
+            } catch (Throwable ignored) {
+            }
+        }
+        if (l != null) {
+            synchronized (CACHE) {
+                if (CACHE.size() > 60) CACHE.clear();
+                CACHE.put(s.id, l);
+            }
+        }
+        if (srcOut != null) srcOut[0] = src;
+        return l;
     }
 
     static void invalidate(long id) {

@@ -143,6 +143,26 @@ public final class Lyric {
         }
     }
 
+    /** 写回成 LRC（带译文的两行同一时间戳）。 */
+    public String toLrc() {
+        StringBuilder sb = new StringBuilder();
+        for (Line l : lines) {
+            sb.append(stamp(l.timeMs)).append(l.text).append('\n');
+            if (l.trans != null && l.trans.length() > 0) {
+                sb.append(stamp(l.timeMs)).append(l.trans).append('\n');
+            }
+        }
+        return sb.toString();
+    }
+
+    private static String stamp(int ms) {
+        if (ms < 0) ms = 0;
+        int m = ms / 60000;
+        int sec = (ms / 1000) % 60;
+        int cs = (ms % 1000) / 10;
+        return String.format("[%02d:%02d.%02d]", m, sec, cs);
+    }
+
     /** 当前时间对应的第几行。 */
     public int indexAt(int ms) {
         if (lines.isEmpty()) return -1;
