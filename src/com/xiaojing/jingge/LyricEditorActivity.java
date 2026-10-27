@@ -519,7 +519,7 @@ public class LyricEditorActivity extends Activity {
     private LinearLayout dialogBox() {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
-        box.setBackgroundColor(Ui.PANEL);
+        box.setBackground(Ui.dialogSurface(this, dp(16)));
         box.setPadding(dp(20), dp(18), dp(20), dp(16));
         return box;
     }

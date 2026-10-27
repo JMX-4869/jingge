@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.19";
+    private static final String VER = "0.20";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -772,6 +772,16 @@ public class MainActivity extends Activity implements MusicService.Listener {
         LinearLayout box = dialogBox();
         box.addView(text("设置", 15, Ui.TEXT, true));
 
+        TextView sl = text("风格", 11, Ui.DIM, false);
+        sl.setPadding(0, dp(14), 0, dp(6));
+        box.addView(sl);
+
+        LinearLayout srow = new LinearLayout(this);
+        srow.setOrientation(LinearLayout.HORIZONTAL);
+        box.addView(srow);
+        srow.addView(styleChip(d, "极简", Ui.STYLE_MINIMAL, Ui.style(this)));
+        srow.addView(styleChip(d, "熵光矩阵", Ui.STYLE_GLOW, Ui.style(this)));
+
         TextView tl = text("主题 · 点一下就用", 11, Ui.DIM, false);
         tl.setPadding(0, dp(14), 0, dp(4));
         box.addView(tl);
@@ -855,6 +865,29 @@ public class MainActivity extends Activity implements MusicService.Listener {
         d.setContentView(sv);
         dialogWindowTall(d);
         d.show();
+    }
+
+    private View styleChip(final Dialog d, final String name, final int style, int cur) {
+        final boolean on = style == cur;
+        TextView t = text(name, 13, on ? Ui.ACCENT : Ui.MUTED, on);
+        t.setPadding(dp(16), dp(9), dp(16), dp(9));
+        t.setBackground(Ui.roundStroke(0, on ? Ui.ACCENT : Ui.LINE, dp(10), dp(1)));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, 0, dp(8), 0);
+        t.setLayoutParams(lp);
+        t.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Ui.setStyle(MainActivity.this, style);
+                ThemeStore.setActive(MainActivity.this, style == Ui.STYLE_GLOW
+                        ? "bi:entropy"
+                        : (Ui.systemDark(MainActivity.this) ? "bi:black" : "bi:paper"));
+                d.dismiss();
+                recreate();
+            }
+        });
+        return t;
     }
 
     private View themeRow(final Dialog d, final Theme t) {
@@ -1090,7 +1123,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
     private LinearLayout dialogBox() {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
-        box.setBackgroundColor(Ui.PANEL);
+        box.setBackground(Ui.dialogSurface(this, dp(16)));
         box.setPadding(dp(20), dp(18), dp(20), dp(16));
         return box;
     }
@@ -1153,7 +1186,9 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private View buildUi() {
         final FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(Ui.BG);
+        android.graphics.drawable.Drawable screen = Ui.screenSurface(this);
+        if (screen != null) root.setBackground(screen);
+        else root.setBackgroundColor(Ui.BG);
         // 兜底：万一窗口被量成 wrap，至少还是满屏高
         root.setMinimumHeight(getResources().getDisplayMetrics().heightPixels);
 

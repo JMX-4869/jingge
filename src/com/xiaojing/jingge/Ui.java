@@ -19,6 +19,22 @@ final class Ui {
     /** 行与行之间的头发丝线 */
     static int LINE_SOFT = 0x22FFFFFF;
 
+    /** 0 = 极简（现在的样子）；1 = 熵光（暗底细网格 + 发光描边） */
+    static final int STYLE_MINIMAL = 0;
+    static final int STYLE_GLOW = 1;
+    static int STYLE = STYLE_MINIMAL;
+
+    private static final String UI_PREFS = "jingge_ui";
+
+    static int style(Context c) {
+        return c.getSharedPreferences(UI_PREFS, Context.MODE_PRIVATE).getInt("ui_style", 0);
+    }
+
+    static void setStyle(Context c, int s) {
+        c.getSharedPreferences(UI_PREFS, Context.MODE_PRIVATE).edit()
+                .putInt("ui_style", s).apply();
+    }
+
     private Ui() {
     }
 
@@ -34,6 +50,19 @@ final class Ui {
         ACCENT = t.accent;
         RIPPLE = (t.text & 0x00FFFFFF) | 0x14000000;
         LINE_SOFT = blend(t.line, t.bg, 0.45f);
+        STYLE = style(c);
+    }
+
+    /** 对话框底层：极简是细描边，熵光是发光 + 网格。 */
+    static android.graphics.drawable.Drawable dialogSurface(Context c, float radius) {
+        if (STYLE == STYLE_GLOW) return new GlowDrawable(PANEL, ACCENT, radius, dp(c, 22), true);
+        return roundStroke(PANEL, LINE_SOFT, radius, 1);
+    }
+
+    /** 整个界面的底。 */
+    static android.graphics.drawable.Drawable screenSurface(Context c) {
+        if (STYLE == STYLE_GLOW) return new GlowDrawable(BG, ACCENT, 0f, dp(c, 26), false);
+        return null;
     }
 
     static boolean isDark() {
