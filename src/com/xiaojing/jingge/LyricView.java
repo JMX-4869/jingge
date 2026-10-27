@@ -30,6 +30,7 @@ public class LyricView extends ScrollView {
     private int current = -2;
     private int lastPos;
     private OnSeek onSeek;
+    private boolean showTrans = true;
 
     public LyricView(Context c) {
         super(c);
@@ -44,6 +45,15 @@ public class LyricView extends ScrollView {
 
     public void setOnSeek(OnSeek s) {
         onSeek = s;
+    }
+
+    /** 双语歌词开关；关了只显示原文。 */
+    public void setShowTrans(boolean on) {
+        showTrans = on;
+    }
+
+    public boolean showTrans() {
+        return showTrans;
     }
 
     public void setMessage(String msg) {
@@ -68,7 +78,8 @@ public class LyricView extends ScrollView {
             for (String line : l.plain) addRow(line, null, -1);
             return;
         }
-        for (Lyric.Line line : l.lines) addRow(line.text, line.trans, line.timeMs);
+        for (Lyric.Line line : l.lines)
+            addRow(line.text, showTrans ? line.trans : null, line.timeMs);
         post(new Runnable() {
             @Override
             public void run() {

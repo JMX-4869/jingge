@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.15";
+    private static final String VER = "0.16";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -91,6 +91,9 @@ public class MainActivity extends Activity implements MusicService.Listener {
     private TextView backTitle;
     private final TextView[] tabViews = new TextView[4];
     private GridView grid;
+    private TextView transBtn;
+    private boolean showTrans = true;
+    private Lyric curLyric;
     private final LruCache<Long, Bitmap> albumCovers =
             new LruCache<Long, Bitmap>(12 * 1024 * 1024) {
                 @Override
@@ -143,6 +146,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         Ui.apply(this);
+        showTrans = Ai.prefs(this).getBoolean("lyric_trans", true);
         try {
             getWindow().setStatusBarColor(Ui.BG);
             getWindow().setNavigationBarColor(Ui.BG);
@@ -500,7 +504,8 @@ public class MainActivity extends Activity implements MusicService.Listener {
                     lyricView.setMessage("没找到歌词");
                     nowLyric.setText("没找到歌词");
                 } else {
-                    lyricView.setLyric(l);
+                    curLyric = l;
+            lyricView.setLyric(l);
                     if (l.synced && !l.lines.isEmpty()) {
                         nowLyric.setText(l.lines.get(0).text);
                     } else if (!l.plain.isEmpty()) {
@@ -1116,6 +1121,20 @@ public class MainActivity extends Activity implements MusicService.Listener {
         w.setLayout(wpx, ViewGroup.LayoutParams.WRAP_CONTENT);
     }
 
+    private void toggleTrans() {
+        showTrans = !showTrans;
+        Ai.prefs(this).edit().putBoolean("lyric_trans", showTrans).apply();
+        if (transBtn != null) {
+            transBtn.setTextColor(showTrans ? Ui.ACCENT : Ui.DIM);
+            transBtn.setBackground(Ui.roundStroke(0,
+                    showTrans ? Ui.ACCENT : Ui.LINE, dp(8), dp(1)));
+        }
+        if (lyricView != null) {
+            lyricView.setShowTrans(showTrans);
+            if (curLyric != null) lyricView.setLyric(curLyric);
+        }
+    }
+
     private View buildUi() {
         final FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Ui.BG);
@@ -1527,6 +1546,19 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
         head.addView(new View(this), new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        transBtn = text("译", 12, showTrans ? Ui.ACCENT : Ui.DIM, true);
+        transBtn.setGravity(Gravity.CENTER);
+        transBtn.setPadding(dp(10), dp(6), dp(10), dp(6));
+        transBtn.setBackground(Ui.roundStroke(0, showTrans ? Ui.ACCENT : Ui.LINE, dp(8), dp(1)));
+        transBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                toggleTrans();
+            }
+        });
+        head.addView(transBtn, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         vinyl = new VinylView(this);
         vinyl.setOnLongClickListener(new View.OnLongClickListener() {

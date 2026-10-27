@@ -78,6 +78,16 @@ public final class Lyric {
             clean.add(l);
         }
 
+        if (clean.size() < 2) {
+            List<String> plain = new ArrayList<String>();
+            for (String raw : lrc.replace("\r", "").split("\n")) {
+                String line = STAMP.matcher(raw).replaceAll("").trim();
+                if (line.length() > 0) plain.add(line);
+            }
+            if (plain.isEmpty()) return null;
+            return new Lyric(new ArrayList<Line>(), plain, false, false);
+        }
+
         if (transLrc != null && transLrc.trim().length() > 0) {
             Map<Integer, String> map = new HashMap<Integer, String>();
             for (Line t : parseLines(transLrc)) {
