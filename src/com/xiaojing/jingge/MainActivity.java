@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.20";
+    private static final String VER = "0.21";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -88,6 +88,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
     private int drawerW;
     private boolean drawerOpen;
     private final TextView[] navItems = new TextView[4];
+    private final View[] navBars = new View[4];
     private TextView backTitle;
     private GridView grid;
     private TextView transBtn;
@@ -1421,14 +1422,28 @@ public class MainActivity extends Activity implements MusicService.Listener {
         drawer.setTranslationX(-drawerW);
 
         TextView dtitle = text("鲸歌 " + VER, 15, Ui.TEXT, false);
-        dtitle.setPadding(dp(24), dp(8), dp(24), dp(18));
+        dtitle.setPadding(dp(24), dp(8), dp(24), dp(2));
         drawer.addView(dtitle);
+
+        TextView dsub = text("JINGGE · LOCAL · PLAYER", 9, Ui.DIM, false);
+        dsub.setLetterSpacing(0.28f);
+        dsub.setPadding(dp(24), 0, dp(24), dp(18));
+        drawer.addView(dsub);
 
         String[] cats = {"歌曲", "专辑", "艺术家", "文件夹"};
         for (int i = 0; i < cats.length; i++) {
             final int idx = i;
+            LinearLayout navRow = new LinearLayout(this);
+            navRow.setOrientation(LinearLayout.HORIZONTAL);
+            navRow.setGravity(Gravity.CENTER_VERTICAL);
+
+            View bar = new View(this);
+            bar.setBackgroundColor(Ui.ACCENT);
+            bar.setVisibility(View.INVISIBLE);
+            navRow.addView(bar, new LinearLayout.LayoutParams(dp(2), dp(18)));
+
             TextView item = text(cats[i], 15, Ui.MUTED, false);
-            item.setPadding(dp(24), dp(14), dp(24), dp(14));
+            item.setPadding(dp(22), dp(13), dp(24), dp(13));
             item.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -1436,8 +1451,12 @@ public class MainActivity extends Activity implements MusicService.Listener {
                     setMode(idx);
                 }
             });
-            drawer.addView(item);
+            navRow.addView(item, new LinearLayout.LayoutParams(0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+            drawer.addView(navRow);
             navItems[i] = item;
+            navBars[i] = bar;
         }
 
         View dline = new View(this);
@@ -1838,6 +1857,9 @@ public class MainActivity extends Activity implements MusicService.Listener {
             boolean on = mode == i;
             navItems[i].setTextColor(on ? Ui.TEXT : Ui.MUTED);
             navItems[i].setTypeface(on ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
+            if (navBars[i] != null) {
+                navBars[i].setVisibility(on ? View.VISIBLE : View.INVISIBLE);
+            }
         }
     }
 

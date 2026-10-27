@@ -55,13 +55,12 @@ final class Ui {
 
     /** 对话框底层：极简是细描边，熵光是发光 + 网格。 */
     static android.graphics.drawable.Drawable dialogSurface(Context c, float radius) {
-        if (STYLE == STYLE_GLOW) return new GlowDrawable(PANEL, ACCENT, radius, dp(c, 22), true);
+        if (STYLE == STYLE_GLOW) return new GlowDrawable(PANEL, ACCENT, radius, 0f, true);
         return roundStroke(PANEL, LINE_SOFT, radius, 1);
     }
 
     /** 整个界面的底。 */
     static android.graphics.drawable.Drawable screenSurface(Context c) {
-        if (STYLE == STYLE_GLOW) return new GlowDrawable(BG, ACCENT, 0f, dp(c, 26), false);
         return null;
     }
 

@@ -40,7 +40,7 @@ final class GlowDrawable extends Drawable {
             p.setStyle(Paint.Style.STROKE);
             for (int i = 3; i >= 1; i--) {
                 p.setStrokeWidth(i * 1.8f);
-                p.setColor(alpha(accent, 8 + i * 5));
+                p.setColor(alpha(accent, 3 + i * 4));
                 c.drawRoundRect(rf, radius, radius, p);
             }
         }
@@ -67,7 +67,7 @@ final class GlowDrawable extends Drawable {
         if (border) {
             p.setStyle(Paint.Style.STROKE);
             p.setStrokeWidth(1.2f);
-            p.setColor(alpha(accent, 150));
+            p.setColor(alpha(accent, 90));
             c.drawRoundRect(rf, radius, radius, p);
         }
     }

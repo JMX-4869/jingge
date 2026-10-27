@@ -25,8 +25,8 @@ final class ThemeStore {
         List<Theme> l = new ArrayList<Theme>();
         l.add(new Theme("bi:black", "极简黑", 0xFF0A0A0A, 0xFF0F0F0F,
                 0xFF1F1F22, 0xFFF3F3F5, 0xFF7C7C84, 0xFF5FE3CB));
-        l.add(new Theme("bi:entropy", "熵光", 0xFF05070A, 0xFF080C11,
-                0xFF122A33, 0xFFE6FBFF, 0xFF5E8A94, 0xFF35F0D0));
+        l.add(new Theme("bi:entropy", "熵光", 0xFF0A0E11, 0xFF0E1418,
+                0xFF1B2429, 0xFFE9EFF2, 0xFF7C8B93, 0xFF2FE0C8));
         l.add(new Theme("bi:paper", "纸白", 0xFFFFFFFF, 0xFFFFFFFF,
                 0xFFE8E8EC, 0xFF0F0F12, 0xFF55555C, 0xFF0B8B7A));
         l.add(new Theme("bi:ink", "墨绿", 0xFF0B1410, 0xFF10201A,
