@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.17";
+    private static final String VER = "0.18";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -608,6 +608,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
             playerPage.setTranslationY(dp(36));
             playerPage.animate().alpha(1f).translationY(0f).setDuration(220).start();
         }
+        if (lyricView != null) lyricView.start();
         syncNow();
     }
 
@@ -740,6 +741,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
     private void closePlayer() {
         if (!playerOpen) return;
         playerOpen = false;
+        if (lyricView != null) lyricView.stop();
         vinyl.setSpinning(false);
         playerPage.animate().alpha(0f).translationY(dp(28)).setDuration(180)
                 .withEndAction(new Runnable() {
@@ -1604,6 +1606,12 @@ public class MainActivity extends Activity implements MusicService.Listener {
             public void onSeek(int ms) {
                 if (svc != null) svc.seekTo(ms);
                 lyricView.setPosition(ms);
+            }
+        });
+        lyricView.setClock(new LyricView.Clock() {
+            @Override
+            public int now() {
+                return svc == null ? 0 : svc.position();
             }
         });
         p.addView(lyricView, new LinearLayout.LayoutParams(
