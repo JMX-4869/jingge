@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.31";
+    private static final String VER = "0.32";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -631,7 +631,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
             @Override
             public void onClick(View v) {
                 d.dismiss();
-                act.run();
+                v.postDelayed(act, 140);
             }
         });
         return t;
@@ -727,8 +727,9 @@ public class MainActivity extends Activity implements MusicService.Listener {
     private void confirmDelete(final Song s) {
         final Dialog d = new Dialog(this);
         LinearLayout box = dialogBox();
-        box.addView(text("删除这个文件？", 15, danger(), true));
-        TextView msg = text(s.title + "\n会从手机存储里真的删掉，删了找不回来。",
+        box.addView(text("确定删除文件？", 15, danger(), true));
+        TextView msg = text(("「" + (s.title == null ? "未命名" : s.title)
+                        + "」\n会把音乐文件从手机存储里真的删掉。\n这一步不能撤销。"),
                 12, Ui.MUTED, false);
         msg.setPadding(0, dp(8), 0, dp(14));
         box.addView(msg);
