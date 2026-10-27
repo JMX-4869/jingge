@@ -24,9 +24,9 @@ final class ThemeStore {
     static List<Theme> builtins() {
         List<Theme> l = new ArrayList<Theme>();
         l.add(new Theme("bi:black", "极简黑", 0xFF0A0A0A, 0xFF0F0F0F,
-                0xFF1C1C1C, 0xFFEDEDED, 0xFF6E6E6E, 0xFF58E0C8));
-        l.add(new Theme("bi:paper", "纸白", 0xFFFAFAFA, 0xFFFFFFFF,
-                0xFFE2E2E6, 0xFF141416, 0xFF6E6E74, 0xFF0E9D8A));
+                0xFF1F1F22, 0xFFF3F3F5, 0xFF7C7C84, 0xFF5FE3CB));
+        l.add(new Theme("bi:paper", "纸白", 0xFFFFFFFF, 0xFFFFFFFF,
+                0xFFE8E8EC, 0xFF0F0F12, 0xFF55555C, 0xFF0B8B7A));
         l.add(new Theme("bi:ink", "墨绿", 0xFF0B1410, 0xFF10201A,
                 0xFF1C2E26, 0xFFE8F2EC, 0xFF6E8A7C, 0xFF6FE0A8));
         l.add(new Theme("bi:night", "夜蓝", 0xFF0A1020, 0xFF0F182C,

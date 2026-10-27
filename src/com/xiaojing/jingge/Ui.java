@@ -16,6 +16,8 @@ final class Ui {
     static int ACCENT = 0xFF58E0C8;
     /** 列表按下的那一层。 */
     static int RIPPLE = 0x14FFFFFF;
+    /** 行与行之间的头发丝线 */
+    static int LINE_SOFT = 0x22FFFFFF;
 
     private Ui() {
     }
@@ -31,6 +33,7 @@ final class Ui {
         DIM = blend(t.muted, t.bg, 0.45f);
         ACCENT = t.accent;
         RIPPLE = (t.text & 0x00FFFFFF) | 0x14000000;
+        LINE_SOFT = blend(t.line, t.bg, 0.45f);
     }
 
     static boolean isDark() {

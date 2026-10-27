@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.13";
+    private static final String VER = "0.14";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -1171,6 +1171,14 @@ public class MainActivity extends Activity implements MusicService.Listener {
         nowLyric.setPadding(0, dp(4), 0, 0);
         nowBox.addView(nowLyric);
 
+        View nowHair = new View(this);
+        nowHair.setBackgroundColor(Ui.LINE_SOFT);
+        LinearLayout.LayoutParams nhp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(1));
+        nhp.setMargins(0, dp(8), 0, 0);
+        nowBox.addView(nowHair, nhp);
+        nowBox.setBackgroundColor(Ui.blend(Ui.BG, Ui.ACCENT, 0.045f));
+
         Icons menu = new Icons(this).icon(Icons.LIST).color(Ui.MUTED).ratio(0.5f);
         menu.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -1995,11 +2003,16 @@ public class MainActivity extends Activity implements MusicService.Listener {
         CoverView cover;
 
         View build() {
+            LinearLayout outer = new LinearLayout(MainActivity.this);
+            outer.setOrientation(LinearLayout.VERTICAL);
+
             LinearLayout row = new LinearLayout(MainActivity.this);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER_VERTICAL);
             row.setPadding(dp(20), dp(8), dp(20), dp(8));
             row.setMinimumHeight(dp(60));
+            outer.addView(row, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
             cover = new CoverView(MainActivity.this);
             cover.setRadiusDp(4);
@@ -2027,7 +2040,12 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
             dur = text("", 11, Ui.DIM, false);
             row.addView(dur);
-            return row;
+
+            View hair = new View(MainActivity.this);
+            hair.setBackgroundColor(Ui.LINE_SOFT);
+            outer.addView(hair, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, dp(1)));
+            return outer;
         }
     }
 
@@ -2097,6 +2115,13 @@ public class MainActivity extends Activity implements MusicService.Listener {
                 p.setColor(0x6658E0C8);
                 c.drawCircle(w * 0.8f, h * 0.2f, m * 0.05f, p);
             }
+            // 头发丝描边：让封面不和背景糊在一起
+            p.setShader(null);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(Math.max(1f, dp(0.6f)));
+            p.setColor(Ui.LINE_SOFT);
+            c.drawRoundRect(r, radius, radius, p);
+            p.setStyle(Paint.Style.FILL);
         }
     }
 }
