@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.16";
+    private static final String VER = "0.17";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -82,14 +82,13 @@ public class MainActivity extends Activity implements MusicService.Listener {
     private Group currentGroup;
     private GroupAdapter groupAdapter;
     private AlbumAdapter albumAdapter;
-    private LinearLayout tabs, backRow;
+    private LinearLayout backRow;
     private FrameLayout drawerScrim;
     private LinearLayout drawer;
     private int drawerW;
     private boolean drawerOpen;
     private final TextView[] navItems = new TextView[4];
     private TextView backTitle;
-    private final TextView[] tabViews = new TextView[4];
     private GridView grid;
     private TextView transBtn;
     private boolean showTrans = true;
@@ -1121,6 +1120,23 @@ public class MainActivity extends Activity implements MusicService.Listener {
         w.setLayout(wpx, ViewGroup.LayoutParams.WRAP_CONTENT);
     }
 
+    private void openAiForCurrent() {
+        Song cur = svc == null ? null : svc.currentSong();
+        if (cur == null) {
+            Toast.makeText(this, "先放一首歌", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        android.content.Intent it = new android.content.Intent(this, LyricEditorActivity.class);
+        it.putExtra("id", cur.id);
+        it.putExtra("title", cur.title);
+        it.putExtra("artist", cur.artist);
+        it.putExtra("album", cur.album);
+        it.putExtra("uri", cur.uri);
+        it.putExtra("dur", cur.durationMs);
+        it.putExtra("ai", true);
+        startActivityForResult(it, REQ_EDIT);
+    }
+
     private void toggleTrans() {
         showTrans = !showTrans;
         Ai.prefs(this).edit().putBoolean("lyric_trans", showTrans).apply();
@@ -1395,6 +1411,17 @@ public class MainActivity extends Activity implements MusicService.Listener {
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(1));
         dlp2.setMargins(dp(24), dp(14), dp(24), dp(8));
         drawer.addView(dline, dlp2);
+
+        TextView aiItem = text("AI 写词", 15, Ui.MUTED, false);
+        aiItem.setPadding(dp(24), dp(14), dp(24), dp(14));
+        aiItem.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                closeDrawer();
+                openAiForCurrent();
+            }
+        });
+        drawer.addView(aiItem);
 
         TextView settingsItem = text("设置", 15, Ui.MUTED, false);
         settingsItem.setPadding(dp(24), dp(14), dp(24), dp(14));
@@ -1738,7 +1765,6 @@ public class MainActivity extends Activity implements MusicService.Listener {
         mode = m;
         lastTab = m;
         currentGroup = null;
-        tabs.setVisibility(View.VISIBLE);
         backRow.setVisibility(View.GONE);
         updateNav();
         applyQuery(search.getText().toString());
@@ -1758,7 +1784,6 @@ public class MainActivity extends Activity implements MusicService.Listener {
     private void backToTabs() {
         mode = lastTab;
         currentGroup = null;
-        tabs.setVisibility(View.VISIBLE);
         backRow.setVisibility(View.GONE);
         updateNav();
         search.setText("");

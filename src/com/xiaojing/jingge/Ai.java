@@ -57,7 +57,7 @@ final class Ai {
         return key(c).length() >= 12;
     }
 
-    static String prompt(String title, String artist, String hint) {
+    static String prompt(String title, String artist, String hint, boolean withTrans) {
         StringBuilder sb = new StringBuilder();
         sb.append("给这首歌写一版中文歌词。\n");
         sb.append("歌名：").append(title == null || title.length() == 0 ? "未命名" : title).append('\n');
@@ -71,12 +71,22 @@ final class Ai {
         sb.append("1. 12 到 24 行，一行一句，句子偏短；\n");
         sb.append("2. 要有具体的画面和动作，不要空泛的形容词堆砌；\n");
         sb.append("3. 只说人话，不要口号；\n");
-        sb.append("4. 只输出歌词正文：不要标题、不要解释、不要时间戳、不要序号。");
+        if (withTrans) {
+            sb.append("4. 每行固定格式：原文|||这一行的中文翻译（分隔符是三个竖线）；\n");
+            sb.append("5. 只输出这些行，不要标题、不要解释、不要时间戳、不要序号。");
+        } else {
+            if (withTrans) {
+            sb.append("4. 每行固定格式：原文|||这一行的中文翻译（分隔符是三个竖线）；\n");
+            sb.append("5. 只输出这些行，不要标题、不要解释、不要时间戳、不要序号。");
+        } else {
+            sb.append("4. 只输出歌词正文：不要标题、不要解释、不要时间戳、不要序号。");
+        }
+        }
         return sb.toString();
     }
 
     static void generate(final Context ctx, final String title, final String artist,
-                         final String hint, final Callback cb) {
+                         final String hint, final boolean withTrans, final Callback cb) {
         final String k = key(ctx);
         if (k.length() < 12) {
             cb.onText(null, "还没填 API Key");
@@ -84,7 +94,7 @@ final class Ai {
         }
         final String url = base(ctx) + "/chat/completions";
         final String m = model(ctx);
-        final String ask = prompt(title, artist, hint);
+        final String ask = prompt(title, artist, hint, withTrans);
         new Thread(new Runnable() {
             @Override
             public void run() {

@@ -44,6 +44,8 @@ public class LyricEditorActivity extends Activity {
     private boolean bound;
 
     private EditText memo;
+    private final List<String> pendingTrans = new ArrayList<String>();
+    private boolean postAi;
     private LinearLayout rowsBox;
     private ScrollView rowsScroll;
     private TextView nowTime;
@@ -76,6 +78,7 @@ public class LyricEditorActivity extends Activity {
             }
         } catch (Throwable ignored) {
         }
+        postAi = getIntent().getBooleanExtra("ai", false);
         songId = getIntent().getLongExtra("id", -1);
         title = getIntent().getStringExtra("title");
         artist = getIntent().getStringExtra("artist");
@@ -87,6 +90,14 @@ public class LyricEditorActivity extends Activity {
             return;
         }
         setContentView(build());
+        if (postAi) {
+            memo.post(new Runnable() {
+                @Override
+                public void run() {
+                    showAiDialog();
+                }
+            });
+        }
         load();
     }
 
@@ -371,6 +382,22 @@ public class LyricEditorActivity extends Activity {
         hint.setPadding(dp(10), dp(8), dp(10), dp(8));
         box.addView(hint);
 
+        final boolean[] withTrans = {Ai.prefs(this).getBoolean("ai_trans", false)};
+        final TextView trToggle = text(withTrans[0] ? "✓ 同时生成中文翻译" : "○ 同时生成中文翻译",
+                12, withTrans[0] ? Ui.ACCENT : Ui.MUTED, false);
+        trToggle.setPadding(0, dp(10), 0, 0);
+        trToggle.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                withTrans[0] = !withTrans[0];
+                Ai.prefs(LyricEditorActivity.this).edit()
+                        .putBoolean("ai_trans", withTrans[0]).apply();
+                trToggle.setText(withTrans[0] ? "✓ 同时生成中文翻译" : "○ 同时生成中文翻译");
+                trToggle.setTextColor(withTrans[0] ? Ui.ACCENT : Ui.MUTED);
+            }
+        });
+        box.addView(trToggle);
+
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.END);
@@ -401,7 +428,7 @@ public class LyricEditorActivity extends Activity {
                 gen.setText("生成中…");
                 gen.setEnabled(false);
                 Ai.generate(LyricEditorActivity.this, title, artist,
-                        hint.getText().toString(), new Ai.Callback() {
+                        hint.getText().toString(), withTrans[0], new Ai.Callback() {
                             @Override
                             public void onText(String text, String error) {
                                 if (d.isShowing()) d.dismiss();
@@ -410,9 +437,24 @@ public class LyricEditorActivity extends Activity {
                                             Toast.LENGTH_LONG).show();
                                     return;
                                 }
-                                memo.setText(text);
+                                pendingTrans.clear();
+                                StringBuilder orig = new StringBuilder();
+                                for (String raw : text.split("\n")) {
+                                    String line = raw.trim();
+                                    if (line.length() == 0) continue;
+                                    String[] pair = line.split("\\|\\|\\|");
+                                    String o = pair[0].trim();
+                                    String t = pair.length > 1 ? pair[1].trim() : "";
+                                    if (o.length() == 0) continue;
+                                    if (orig.length() > 0) orig.append('\n');
+                                    orig.append(o);
+                                    pendingTrans.add(t);
+                                }
+                                memo.setText(orig.toString());
                                 Toast.makeText(LyricEditorActivity.this,
-                                        "生成好了，点「打点」对时间", Toast.LENGTH_SHORT).show();
+                                        withTrans[0] ? "生成好了，带翻译；点「打点」对时间"
+                                                : "生成好了，点「打点」对时间",
+                                        Toast.LENGTH_SHORT).show();
                             }
                         });
             }
@@ -566,14 +608,25 @@ public class LyricEditorActivity extends Activity {
             }
         }
         int last = 0;
+        int ti = 0;
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i].trim();
             if (line.length() == 0) continue;
             if (times[i] >= 0) last = times[i];
+            int ts = times[i] >= 0 ? times[i] : last;
             if (any) {
-                sb.append(stamp(times[i] >= 0 ? times[i] : last)).append(line).append('\n');
+                sb.append(stamp(ts)).append(line).append('\n');
             } else {
                 sb.append(line).append('\n');
+            }
+            String tr = ti < pendingTrans.size() ? pendingTrans.get(ti) : null;
+            ti++;
+            if (tr != null && tr.trim().length() > 0 && !tr.trim().equals(line)) {
+                if (any) {
+                    sb.append(stamp(ts)).append(tr.trim()).append('\n');
+                } else {
+                    sb.append(tr.trim()).append('\n');
+                }
             }
         }
         LyricStore.save(this, songId, sb.toString());
