@@ -114,7 +114,7 @@ public class StarfieldView extends View {
     protected void onDraw(Canvas c) {
         int w = getWidth();
         int h = getHeight();
-        if (w <= 0 || h <= 0) return;
+        if (w <= 0 || h <= 0 || Ui.FX == 0) return;
 
         long now = SystemClock.uptimeMillis();
         if (t0 == 0) t0 = now;
@@ -137,14 +137,16 @@ public class StarfieldView extends View {
         }
 
         p.setColor(Ui.ACCENT);
-        for (int i = 0; i < N; i++) {
+        int limit = Ui.FX >= 2 ? N : FAR + MID;
+        float dim = Ui.FX >= 2 ? 1f : 0.55f;
+        for (int i = 0; i < limit; i++) {
             y[i] -= sp[i] * dt;
             if (y[i] < -0.02f) {
                 y[i] = 1.02f;
                 x[i] = rnd.nextFloat();
             }
             float tw = 0.55f + 0.45f * (float) Math.sin(ph[i] + t * (0.8f + (i % 7) * 0.19f));
-            int a = (int) (al[i] * tw * 255);
+            int a = (int) (al[i] * tw * dim * 255);
             if (a <= 0) continue;
             p.setAlpha(a);
             float px = x[i] * w;
@@ -157,6 +159,7 @@ public class StarfieldView extends View {
             }
         }
 
+        if (Ui.FX < 2) return;
         if (now > nextMeteor) {
             spawnMeteor();
             nextMeteor = now + 2200 + (long) (rnd.nextFloat() * 4200);

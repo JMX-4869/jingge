@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.29";
+    private static final String VER = "0.30";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -856,6 +856,17 @@ public class MainActivity extends Activity implements MusicService.Listener {
         srow.addView(styleChip(d, "极简", Ui.STYLE_MINIMAL, Ui.style(this)));
         srow.addView(styleChip(d, "群星", Ui.STYLE_GLOW, Ui.style(this)));
 
+        TextView fl = text("动效", 11, Ui.DIM, false);
+        fl.setPadding(0, dp(12), 0, dp(6));
+        box.addView(fl);
+
+        LinearLayout frow = new LinearLayout(this);
+        frow.setOrientation(LinearLayout.HORIZONTAL);
+        box.addView(frow);
+        frow.addView(fxChip(d, "华丽", 2));
+        frow.addView(fxChip(d, "克制", 1));
+        frow.addView(fxChip(d, "关", 0));
+
         TextView tl = text("主题 · 点一下就用", 11, Ui.DIM, false);
         tl.setPadding(0, dp(14), 0, dp(4));
         box.addView(tl);
@@ -950,6 +961,26 @@ public class MainActivity extends Activity implements MusicService.Listener {
         d.setContentView(sv);
         dialogWindowTall(d);
         d.show();
+    }
+
+    private View fxChip(final Dialog d, final String name, final int level) {
+        final boolean on = Ui.FX == level;
+        TextView t = text(name, 13, on ? Ui.ACCENT : Ui.MUTED, on);
+        t.setPadding(dp(16), dp(9), dp(16), dp(9));
+        t.setBackground(Ui.roundStroke(0, on ? Ui.ACCENT : Ui.LINE, dp(10), dp(1)));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, 0, dp(8), 0);
+        t.setLayoutParams(lp);
+        t.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Ui.setFx(MainActivity.this, level);
+                d.dismiss();
+                recreate();
+            }
+        });
+        return t;
     }
 
     private View styleChip(final Dialog d, final String name, final int style, int cur) {
@@ -1822,7 +1853,17 @@ public class MainActivity extends Activity implements MusicService.Listener {
         });
         drawer.addView(aboutItem);
 
-        playerPage = buildPlayer();
+        View playerContent = buildPlayer();
+        if (Ui.STYLE == Ui.STYLE_GLOW && Ui.FX > 0) {
+            FrameLayout wrap = new FrameLayout(this);
+            wrap.addView(new StarfieldView(this), new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            wrap.addView(playerContent, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            playerPage = wrap;
+        } else {
+            playerPage = playerContent;
+        }
         root.addView(playerPage, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         playerPage.setVisibility(View.GONE);
@@ -1930,7 +1971,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
         LinearLayout p = new LinearLayout(this);
         p.setOrientation(LinearLayout.VERTICAL);
         p.setPadding(dp(20), 0, dp(20), dp(16));
-        if (Ui.STYLE != Ui.STYLE_GLOW) p.setBackgroundColor(Ui.BG);
+        p.setBackgroundColor(Ui.BG);
 
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);

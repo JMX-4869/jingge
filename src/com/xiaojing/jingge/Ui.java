@@ -24,10 +24,18 @@ final class Ui {
     static final int STYLE_GLOW = 1;
     static int STYLE = STYLE_MINIMAL;
 
+    /** 动效：0 关，1 克制，2 华丽 */
+    static int FX = 2;
+
     private static final String UI_PREFS = "jingge_ui";
 
     static int style(Context c) {
         return c.getSharedPreferences(UI_PREFS, Context.MODE_PRIVATE).getInt("ui_style", 0);
+    }
+
+    static void setFx(Context c, int v) {
+        c.getSharedPreferences(UI_PREFS, Context.MODE_PRIVATE).edit()
+                .putInt("ui_fx", v).apply();
     }
 
     static void setStyle(Context c, int s) {
@@ -51,11 +59,14 @@ final class Ui {
         RIPPLE = (t.text & 0x00FFFFFF) | 0x14000000;
         LINE_SOFT = blend(t.line, t.bg, 0.45f);
         STYLE = style(c);
+        FX = c.getSharedPreferences(UI_PREFS, Context.MODE_PRIVATE).getInt("ui_fx", 2);
     }
 
     /** 对话框底层：极简是细描边，熵光是发光 + 网格。 */
     static android.graphics.drawable.Drawable dialogSurface(Context c, float radius) {
-        if (STYLE == STYLE_GLOW) return new GlowDrawable(PANEL, ACCENT, radius, 0f, true);
+        if (STYLE == STYLE_GLOW) {
+            return new GlowDrawable(PANEL, ACCENT, radius, 0f, FX > 0);
+        }
         return roundStroke(PANEL, LINE_SOFT, radius, 1);
     }
 
