@@ -75,6 +75,7 @@ final class MusicRepo {
                 }
                 if (junk(album)) album = null;
                 if (looksLikeRecording(title) || looksLikeRecording(file)) continue;
+                if (Hidden.has(ctx, id)) continue;
                 String[] meta = MetaStore.get(ctx, id);
                 if (meta != null) {
                     if (meta[0] != null) title = meta[0];
