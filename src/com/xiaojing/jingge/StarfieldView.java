@@ -237,7 +237,7 @@ public class StarfieldView extends View {
         // 流星：一直都会有，间隔随机
         if (nextMeteor == 0 || now > nextMeteor) {
             spawnMeteor();
-            long gap = 900 + (long) (rnd.nextFloat() * 2600);
+            long gap = 3200 + (long) (rnd.nextFloat() * 6200);
             nextMeteor = now + gap;
         }
         boolean meteorAlive = false;
