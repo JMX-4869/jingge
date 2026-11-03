@@ -47,6 +47,7 @@ public class MusicService extends Service implements
     public static final String ACT_PREV = "com.xiaojing.jingge.PREV";
     public static final String ACT_STOP = "com.xiaojing.jingge.STOP";
     public static final String ACT_REC = "com.xiaojing.jingge.RECOGNIZE";
+    public static final String ACT_WORD = "com.xiaojing.jingge.LYRIC";
 
     private static final String CHANNEL = "playback";
     static boolean fg = false;
@@ -190,6 +191,7 @@ public class MusicService extends Service implements
             else if (ACT_PREV.equals(a)) prev();
             else if (ACT_STOP.equals(a)) stopAll();
             else if (ACT_REC.equals(a)) startBgRec();
+            else if (ACT_WORD.equals(a)) cycleLyricMode();
         }
         return START_NOT_STICKY;
     }
@@ -400,6 +402,26 @@ public class MusicService extends Service implements
         notifyChanged();
     }
 
+    /** 通知栏歌词三态：0 关 / 1 跟着滚 / 2 锁定当前这句 */
+    private int lyricMode() {
+        return Ai.prefs(this).getInt("notif_lyric", 1);
+    }
+
+    private void cycleLyricMode() {
+        int m = (lyricMode() + 1) % 3;
+        Ai.prefs(this).edit().putInt("notif_lyric", m).apply();
+        if (m == 0) {
+            lyricLine = null;
+        } else if (m == 1) {
+            lyricIdx = -2;
+            syncLyricLine();
+        }
+        updateNotification();
+        toastMain(m == 0 ? "通知栏歌词：已关掉"
+                : m == 1 ? "通知栏歌词：跟着播放走"
+                : "通知栏歌词：锁定这一句（再点关掉）");
+    }
+
     private final Runnable lyricTick = new Runnable() {
         @Override
         public void run() {
@@ -425,6 +447,14 @@ public class MusicService extends Service implements
             lyric = raw == null ? null : Lyric.parse(raw);
             if (lyric != null && !lyric.synced) lyric = null;
         }
+        int mode = lyricMode();
+        if (mode == 0) {
+            if (lyricLine != null) {
+                lyricLine = null;
+                updateNotification();
+            }
+            return;
+        }
         if (lyric == null) {
             if (lyricLine != null) {
                 lyricLine = null;
@@ -432,6 +462,7 @@ public class MusicService extends Service implements
             }
             return;
         }
+        if (mode == 2 && lyricLine != null) return;   // 锁住了，别动
         int pos = 0;
         try {
             if (mp != null && prepared) pos = mp.getCurrentPosition();
@@ -899,6 +930,11 @@ public class MusicService extends Service implements
                 .addAction(aNext);
         if (Build.VERSION.SDK_INT >= 24 && s != null) b.setSubText(s.subtitle());
         if (withRec) b.addAction(aRec);
+        int lm = lyricMode();
+        String wTitle = lm == 0 ? "歌词·关" : lm == 2 ? "歌词·锁" : "歌词";
+        Notification.Action aWord = new Notification.Action.Builder(
+                R.drawable.ic_lyric, wTitle, servicePi(ACT_WORD, 7)).build();
+        b.addAction(aWord);
         b.setStyle(new Notification.MediaStyle()
                 .setMediaSession(session.getSessionToken())
                 .setShowActionsInCompactView(0, 1, 2));
