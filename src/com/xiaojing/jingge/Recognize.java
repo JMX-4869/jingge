@@ -40,6 +40,16 @@ final class Recognize {
         void onTrack(Track t, String error);
     }
 
+    /** 服务端返回码留着，设置里的「测一下」要按码说话 */
+    static final class ApiErr extends Exception {
+        final int code;
+
+        ApiErr(int code, String msg) {
+            super(msg);
+            this.code = code;
+        }
+    }
+
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
 
     private Recognize() {
@@ -110,6 +120,8 @@ final class Recognize {
                         t = acr(ctx, pcm, sampleRate);
                     }
                     if (t == null && err == null) err = "没听出来（可能环境太吵，或者这段太短）";
+                } catch (ApiErr e) {
+                    err = describe(e.code, e.getMessage());
                 } catch (Throwable e) {
                     err = "识别失败：" + e.getMessage();
                 }
@@ -164,7 +176,7 @@ final class Recognize {
         int code = st == null ? -1 : st.optInt("code", -1);
         if (code != 0) {
             String msg = st == null ? "返回异常" : st.optString("msg", "code " + code);
-            throw new IllegalStateException(msg);
+            throw new ApiErr(code, msg);
         }
         JSONArray music = o.optJSONObject("metadata") == null ? null
                 : o.optJSONObject("metadata").optJSONArray("music");
@@ -281,6 +293,63 @@ final class Recognize {
     }
 
     // ───────────────── 工具 ─────────────────
+
+    static String describe(int code, String msg) {
+        switch (code) {
+            case 1001:
+                return "Access Key 不对（控制台里再抄一遍）";
+            case 1002:
+                return "Access Secret 不对";
+            case 1003:
+                return "签名没通过 —— Host 和 Key 可能不是同一个区的";
+            case 2000:
+                return "本机时间偏差太大，签名会失效";
+            case 3001:
+                return "这段音频解不开";
+            case 3003:
+                return "没听出来（服务端说没有匹配的歌）";
+            case 3013:
+                return "这段太短了，录够 5 秒再试";
+            default:
+                return (msg == null || msg.length() == 0) ? ("返回码 " + code) : msg;
+        }
+    }
+
+    /** 设置里的「测一下」：拿 1 秒静音打一次，只要签名过了就算配对了 */
+    static void testKeys(final Context ctx, final Cb cb) {
+        if (!configured(ctx)) {
+            cb.onTrack(null, "还没填全（Host / Access Key / Access Secret 三样都要）");
+            return;
+        }
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String err = null;
+                try {
+                    Track t = acr(ctx, new byte[SR_TEST * 2], SR_TEST);
+                    if (t != null) {
+                        err = null;
+                    }
+                } catch (ApiErr e) {
+                    err = e.code == 3003
+                            ? null
+                            : describe(e.code, e.getMessage());
+                } catch (Throwable e) {
+                    err = "连不上：" + e.getMessage();
+                }
+                final String fe = err;
+                MAIN.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        cb.onTrack(fe == null ? new Track() : null,
+                                fe == null ? "配对成功，签名过了（服务端只是没听出歌）" : fe);
+                    }
+                });
+            }
+        }, "rec-test").start();
+    }
+
+    private static final int SR_TEST = 44100;
 
     private static String post(String url, String contentType, byte[] body) throws Exception {
         HttpURLConnection c = null;

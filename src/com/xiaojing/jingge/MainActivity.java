@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.51";
+    private static final String VER = "0.52";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -1524,8 +1524,10 @@ public class MainActivity extends Activity implements MusicService.Listener {
         hl.setPadding(0, dp(14), 0, dp(6));
         box.addView(hl);
 
-        final EditText host = field(Recognize.acrHost(this),
-                "Host，如 identify-cn-north-1.acrcloud.cn（粘整段网址也行）");
+        String host0 = Recognize.acrHost(this);
+        if (host0.length() == 0) host0 = "identify-ap-southeast-1.acrcloud.com";
+        final EditText host = field(host0,
+                "Host，如 identify-ap-southeast-1.acrcloud.com");
         final EditText key = field(Recognize.acrKey(this), "access key");
         final EditText secret = field(Recognize.acrSecret(this), "access secret");
         box.addView(host);
@@ -1551,6 +1553,26 @@ public class MainActivity extends Activity implements MusicService.Listener {
             }
         });
         row.addView(cancel);
+
+        TextView test = text("测一下", 13, Ui.MUTED, false);
+        test.setPadding(dp(12), dp(8), dp(12), dp(8));
+        test.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Recognize.saveAcr(MainActivity.this,
+                        host.getText().toString(), key.getText().toString(),
+                        secret.getText().toString());
+                Toast.makeText(MainActivity.this, "正在试…", Toast.LENGTH_SHORT).show();
+                Recognize.testKeys(MainActivity.this, new Recognize.Cb() {
+                    @Override
+                    public void onTrack(Recognize.Track t, String error) {
+                        Toast.makeText(MainActivity.this,
+                                error == null ? "配对成功" : error, Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+        });
+        row.addView(test);
 
         TextView ok = text("保存", 13, Ui.ACCENT, true);
         ok.setPadding(dp(12), dp(8), dp(12), dp(8));
