@@ -764,7 +764,12 @@ public class MusicService extends Service implements
     }
 
     private void updateNotification() {
-        if (!foreground || nm == null) return;
+        if (nm == null) return;
+        // 通知被系统清掉过（或者启动时失败过）就自己补回来，别等人发现
+        if (!foreground) {
+            if (playing || queue.current() != null) ensureForeground();
+            return;
+        }
         try {
             nm.notify(NOTIF_ID, buildNotification());
         } catch (Throwable ignored) {
