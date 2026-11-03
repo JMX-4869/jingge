@@ -8,16 +8,20 @@ import android.graphics.Shader;
 import android.os.SystemClock;
 import android.view.View;
 
+import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 /**
- * 群星风格的底：四层视差星点 + 会漂的星云 + 偶尔划过的流星。
+ * 群星风格的底：四层视差星点 + 会漂的星云 + 流星。
  *
- * 这一版的重点不是"更多"，是"更深"：
- *   · 星星分四层，速度和亮度不一样，近处的带光晕、最亮的带十字星芒
- *   · 星云靠 canvas 平移让渐变缓慢游动（不新建 Gradient，避免每帧分配）
- *   · 流星 3.5~9 秒一颗，尾巴用四段递减的线画出来，不是一根棍
- * 只在可见时跑，30fps 封顶。
+ * ⚠️ 它是一段"演出"，不是循环动画：
+ *   0～1.2s  切进来，星点从暗到亮
+ *   0～6s    流星一两颗，星云慢慢浮上来
+ *   6～9.5s  越转越慢，最后停住
+ *   9.5s 之后 一帧都不再画（省电），画面定格
+ * 再次"播一次"的时机：页面重新可见、回到前台、或手动 replay()。
  */
 public class StarfieldView extends View {
     private static final int FAR = 210;
@@ -25,6 +29,14 @@ public class StarfieldView extends View {
     private static final int NEAR = 30;
     private static final int BRIGHT = 6;
     private static final int N = FAR + MID + NEAR + BRIGHT;
+
+    /** 整段演出的长度（秒） */
+    private static final float SHOW = 9.5f;
+    /** 流星最晚出现到第几秒 */
+    private static final float METEOR_UNTIL = 6.0f;
+
+    private static final List<WeakReference<StarfieldView>> LIVE =
+            new ArrayList<WeakReference<StarfieldView>>();
 
     private final float[] x = new float[N];
     private final float[] y = new float[N];
@@ -43,8 +55,9 @@ public class StarfieldView extends View {
 
     private long last;
     private long lastFrame;
-    private long t0;
+    private long showStart;
     private boolean running;
+    private boolean finished;
     private float density = 1f;
     private final Random rnd = new Random(0x51AE7);
 
@@ -87,16 +100,37 @@ public class StarfieldView extends View {
             }
         }
         for (int i = 0; i < 2; i++) mlife[i] = -1f;
+        LIVE.add(new WeakReference<StarfieldView>(this));
+    }
+
+    /** 重新播一次（页面切回来、回到前台时用）。 */
+    public void replay() {
+        showStart = 0;
+        last = 0;
+        lastFrame = 0;
+        finished = false;
+        running = true;
+        nextMeteor = 0;
+        for (int i = 0; i < 2; i++) mlife[i] = -1f;
+        invalidate();
+    }
+
+    /** 所有还活着的星野一起重播。 */
+    static void replayAll() {
+        for (int i = LIVE.size() - 1; i >= 0; i--) {
+            StarfieldView v = LIVE.get(i).get();
+            if (v == null) {
+                LIVE.remove(i);
+            } else {
+                v.replay();
+            }
+        }
     }
 
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        running = true;
-        last = 0;
-        lastFrame = 0;
-        t0 = 0;
-        postInvalidateOnAnimation();
+        replay();
     }
 
     @Override
@@ -108,12 +142,9 @@ public class StarfieldView extends View {
     @Override
     protected void onWindowVisibilityChanged(int v) {
         super.onWindowVisibilityChanged(v);
-        running = v == VISIBLE;
-        if (running) {
-            last = 0;
-            lastFrame = 0;
-            postInvalidateOnAnimation();
-        }
+        // 每次重新露面，从头演一次
+        if (v == VISIBLE) replay();
+        else running = false;
     }
 
     @Override
@@ -134,20 +165,29 @@ public class StarfieldView extends View {
         if (w <= 0 || h <= 0) return;
 
         long now = SystemClock.uptimeMillis();
-        if (t0 == 0) t0 = now;
+        if (showStart == 0) showStart = now;
+        float t = (now - showStart) / 1000f;
         float dt = last == 0 ? 0f : Math.min(0.05f, (now - last) / 1000f);
         last = now;
-        float t = (now - t0) / 1000f;
+
+        // 演出进度 0→1；之后画面定格
+        float prog = Math.min(1f, t / SHOW);
+        // 入场淡入
+        float appear = Math.min(1f, t / 1.2f);
+        appear = appear * appear * (3 - 2 * appear);
+        // 越到后面越慢，最后停住
+        float slow = (float) Math.pow(1f - prog, 1.35f);
 
         cv.drawColor(Ui.BG);
 
-        // 星云：靠画布平移让渐变游动，不重建 Gradient
+        // 星云：跟着画布平移慢慢游，入场时亮度从 0 拉到满
         if (g1 != null) {
+            float nebA = appear * (1f - 0.15f * prog);
             int save = cv.save();
             cv.translate((float) Math.sin(t * 0.045f) * w * 0.035f,
                     (float) Math.cos(t * 0.037f) * h * 0.025f);
             neb.setShader(g1);
-            neb.setAlpha((int) (206 + 26 * Math.sin(t * 0.33f)));
+            neb.setAlpha((int) ((206 + 26 * Math.sin(t * 0.33f)) * nebA));
             cv.drawRect(-w * 0.1f, -h * 0.1f, w * 1.1f, h * 1.1f, neb);
             cv.restoreToCount(save);
 
@@ -155,19 +195,19 @@ public class StarfieldView extends View {
             cv.translate((float) Math.cos(t * 0.032f + 1f) * w * 0.03f,
                     (float) Math.sin(t * 0.041f + 2f) * h * 0.03f);
             neb.setShader(g2);
-            neb.setAlpha((int) (200 + 28 * Math.sin(t * 0.25f + 2f)));
+            neb.setAlpha((int) ((200 + 28 * Math.sin(t * 0.25f + 2f)) * nebA));
             cv.drawRect(-w * 0.1f, -h * 0.1f, w * 1.1f, h * 1.1f, neb);
             cv.restoreToCount(save);
 
             neb.setShader(g3);
-            neb.setAlpha((int) (110 + 44 * Math.sin(t * 0.19f + 4f)));
+            neb.setAlpha((int) ((110 + 44 * Math.sin(t * 0.19f + 4f)) * nebA));
             cv.drawRect(0, 0, w, h, neb);
         }
 
         p.setStyle(Paint.Style.FILL);
         for (int i = 0; i < N; i++) {
-            y[i] -= sp[i] * dt;
-            x[i] += dx[i] * dt;
+            y[i] -= sp[i] * dt * slow;
+            x[i] += dx[i] * dt * slow;
             if (y[i] < -0.03f) {
                 y[i] = 1.03f;
                 x[i] = rnd.nextFloat();
@@ -175,14 +215,15 @@ public class StarfieldView extends View {
             if (x[i] < -0.02f) x[i] = 1.02f;
             if (x[i] > 1.02f) x[i] = -0.02f;
 
-            float twk = 0.55f + 0.45f * (float) Math.sin(ph[i] + t * tw[i]);
-            int a = (int) (al[i] * twk * 255);
+            // 闪烁随演出衰减：结束时星点是稳的，不再呼吸
+            float flash = (float) Math.sin(ph[i] + t * tw[i]);
+            float twk = 0.55f + 0.45f * flash * (0.15f + 0.85f * (1f - prog));
+            int a = (int) (al[i] * twk * appear * 255);
             if (a <= 1) continue;
             float px = x[i] * w;
             float py = y[i] * h;
             float rad = Math.max(1f, r[i] * density * 0.55f);
 
-            // 冷白和青色混着来，纯青会显得假
             p.setColor((i % 5) != 0 ? Ui.ACCENT : 0xFFDCE8EC);
             p.setAlpha(a);
             cv.drawCircle(px, py, rad, p);
@@ -192,7 +233,6 @@ public class StarfieldView extends View {
                 cv.drawCircle(px, py, rad * 3.4f, p);
             }
             if (i >= FAR + MID + NEAR) {
-                // 最亮的几颗：十字星芒
                 p.setAlpha(Math.max(1, a / 3));
                 float L = rad * 6.5f;
                 p.setStrokeWidth(Math.max(1f, rad * 0.7f));
@@ -203,11 +243,13 @@ public class StarfieldView extends View {
             }
         }
 
-        // 流星
-        if (now > nextMeteor) {
+        // 流星：只在演出前半段出现，之后不再生
+        if (t < METEOR_UNTIL && (nextMeteor == 0 || now > nextMeteor)) {
             spawnMeteor();
-            nextMeteor = now + 3500 + (long) (rnd.nextFloat() * 5500);
+            long gap = 900 + (long) (rnd.nextFloat() * 2600);
+            nextMeteor = now + gap;
         }
+        boolean meteorAlive = false;
         for (int i = 0; i < 2; i++) {
             if (mlife[i] < 0) continue;
             mlife[i] += dt;
@@ -216,13 +258,14 @@ public class StarfieldView extends View {
                 mlife[i] = -1f;
                 continue;
             }
+            meteorAlive = true;
             float vx = (float) Math.cos(ma[i]);
             float vy = (float) Math.sin(ma[i]);
             mx[i] += vx * mv[i] * dt;
             my[i] += vy * mv[i] * dt;
 
             float fade = frac < 0.18f ? frac / 0.18f : 1f - (frac - 0.18f) / 0.82f;
-            fade = Math.max(0f, fade);
+            fade = Math.max(0f, fade) * appear;
             float len = 54f * density;
             p.setStyle(Paint.Style.STROKE);
             for (int k = 0; k < 4; k++) {
@@ -239,6 +282,12 @@ public class StarfieldView extends View {
             cv.drawCircle(mx[i], my[i], Math.max(1.2f, 1.6f * density), p);
         }
 
+        boolean done = prog >= 1f && !meteorAlive;
+        if (done) {
+            // 定格：不再请求下一帧
+            if (!finished) finished = true;
+            return;
+        }
         if (running && now - lastFrame >= 28) {
             lastFrame = now;
             postInvalidateOnAnimation();

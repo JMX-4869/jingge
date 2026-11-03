@@ -33,6 +33,9 @@ final class GlowDrawable extends Drawable {
 
     private LinearGradient shine;
     private int shineW;
+    /** 这个 drawable 是第几毫秒建的：扫光和呼吸从这里开始计时，演完就不动 */
+    private final long born = SystemClock.uptimeMillis();
+    private static final long SHOW_MS = 8600L;
 
     GlowDrawable(int fill, int accent, float radius, float grid, boolean border) {
         this.fill = fill;
@@ -45,7 +48,11 @@ final class GlowDrawable extends Drawable {
     @Override
     public void draw(Canvas c) {
         long now = SystemClock.uptimeMillis();
-        float breathe = 0.5f + 0.5f * (float) Math.sin(now / 1400.0);
+        long age = now - born;
+        boolean playing = age < SHOW_MS;
+        float breathe = playing
+                ? 0.5f + 0.5f * (float) Math.sin(age / 1400.0)
+                : 0.5f;
         Rect b = getBounds();
         rf.set(b);
         path.reset();
@@ -89,8 +96,8 @@ final class GlowDrawable extends Drawable {
             p.setColor(alpha(accent, (int) (46 + 30 * breathe)));
             c.drawRoundRect(rf, radius, radius, p);
 
-            // 沿边扫光
-            if (b.width() > 8) {
+            // 沿边扫光：扫两圈就停
+            if (playing && b.width() > 8) {
                 if (shine == null || shineW != b.width()) {
                     shineW = b.width();
                     float w = shineW;
@@ -102,7 +109,7 @@ final class GlowDrawable extends Drawable {
                             alpha(accent, 0),
                     }, new float[]{0f, 0.40f, 0.50f, 0.60f, 1f}, Shader.TileMode.CLAMP);
                 }
-                float phase = (now % 4200L) / 4200f;
+                float phase = (age % 4200L) / 4200f;
                 mat.setTranslate(-shineW + phase * shineW * 2f, 0);
                 shine.setLocalMatrix(mat);
                 p.setShader(shine);
