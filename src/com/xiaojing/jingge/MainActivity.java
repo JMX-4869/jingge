@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.48";
+    private static final String VER = "0.49";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -1944,6 +1944,10 @@ public class MainActivity extends Activity implements MusicService.Listener {
         box.addView(rl);
 
         String entry = recEntry(this);
+        TextView elabel = text("识曲入口", 11, Ui.DIM, false);
+        elabel.setPadding(0, dp(10), 0, dp(6));
+        box.addView(elabel);
+
         LinearLayout erow = new LinearLayout(this);
         erow.setOrientation(LinearLayout.HORIZONTAL);
         erow.setPadding(0, 0, 0, dp(10));
