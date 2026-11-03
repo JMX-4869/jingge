@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.47";
+    private static final String VER = "0.48";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -256,8 +256,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
                 BallService.start(this);
                 Toast.makeText(this, "悬浮球开了 · 点一下听音识曲", Toast.LENGTH_SHORT).show();
             } else {
-                Toast.makeText(this, "没给「显示在其他应用上层」，悬浮球起不来",
-                        Toast.LENGTH_LONG).show();
+                showOverlayHelp();
             }
         } else if (BallService.wanted(this) && !BallService.running
                 && (android.os.Build.VERSION.SDK_INT < 23
@@ -1377,6 +1376,73 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     // ───────────────── 听音识曲 ─────────────────
 
+    /** 识曲入口：both / ball / notif */
+    static String recEntry(android.content.Context c) {
+        return Ai.prefs(c).getString("rec_entry", "both");
+    }
+
+    private void setRecEntry(String v) {
+        Ai.prefs(this).edit().putString("rec_entry", v).apply();
+        if ("notif".equals(v)) {
+            BallService.setWanted(this, false);
+            BallService.stop(this);
+        }
+        if (svc != null) svc.refreshNotification();
+    }
+
+    /** 悬浮窗被系统拒了（MIUI/HyperOS 常见）：给一条能走通的路，别只弹一句话 */
+    private void showOverlayHelp() {
+        final Dialog d = new Dialog(this);
+        LinearLayout box = dialogBox();
+        box.addView(text("系统没让开悬浮窗", 15, Ui.TEXT, true));
+        TextView tip = text("小米/红米这类系统会拦「显示在其他应用上层」。", 12, Ui.MUTED, false);
+        tip.setPadding(0, dp(10), 0, dp(6));
+        tip.setLineSpacing(dp(3), 1f);
+        box.addView(tip);
+
+        TextView tip2 = text("设置 → 应用设置 → 应用管理 → 鲸歌 → 其他权限 → 显示悬浮窗",
+                12, Ui.MUTED, false);
+        tip2.setPadding(0, 0, 0, dp(12));
+        box.addView(tip2);
+
+        tip.setLineSpacing(dp(3), 1f);
+        box.addView(tip);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.END);
+        box.addView(row);
+
+        TextView cancel = text("算了", 13, Ui.MUTED, false);
+        cancel.setPadding(dp(12), dp(8), dp(16), dp(8));
+        cancel.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                d.dismiss();
+            }
+        });
+        row.addView(cancel);
+
+        TextView go = text("去应用详情", 13, Ui.ACCENT, true);
+        go.setPadding(dp(12), dp(8), dp(12), dp(8));
+        go.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                d.dismiss();
+                try {
+                    startActivity(new Intent(
+                            android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            android.net.Uri.parse("package:" + getPackageName())));
+                } catch (Throwable t) {
+                    Toast.makeText(MainActivity.this, "打不开应用详情，手动翻设置吧",
+                            Toast.LENGTH_LONG).show();
+                }
+            }
+        });
+        row.addView(go);
+
+        d.setContentView(box);
+        dialogWindow(d);
+        d.show();
+    }
+
     private void toggleBall() {
         if (BallService.wanted(this) || BallService.running) {
             BallService.setWanted(this, false);
@@ -1506,6 +1572,25 @@ public class MainActivity extends Activity implements MusicService.Listener {
         d.setContentView(box);
         dialogWindow(d);
         d.show();
+    }
+
+    private View entryChip(final Dialog d, final String name, final String id, String cur) {
+        final boolean on = id.equals(cur);
+        TextView t = text(name, 13, on ? Ui.ACCENT : Ui.MUTED, on);
+        t.setPadding(dp(14), dp(8), dp(14), dp(8));
+        t.setBackground(Ui.roundStroke(0, on ? Ui.ACCENT : Ui.LINE, dp(10), dp(1)));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, 0, dp(8), 0);
+        t.setLayoutParams(lp);
+        t.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                setRecEntry(id);
+                d.dismiss();
+                showSettings();
+            }
+        });
+        return t;
     }
 
     private View recChip(final Dialog d, final String name, final String id, String cur) {
@@ -1857,6 +1942,15 @@ public class MainActivity extends Activity implements MusicService.Listener {
         TextView rl = text("听音识曲", 11, Ui.DIM, false);
         rl.setPadding(0, dp(16), 0, dp(6));
         box.addView(rl);
+
+        String entry = recEntry(this);
+        LinearLayout erow = new LinearLayout(this);
+        erow.setOrientation(LinearLayout.HORIZONTAL);
+        erow.setPadding(0, 0, 0, dp(10));
+        box.addView(erow);
+        erow.addView(entryChip(d, "悬浮球", "ball", entry));
+        erow.addView(entryChip(d, "通知栏", "notif", entry));
+        erow.addView(entryChip(d, "都开", "both", entry));
 
         TextView recRow = text("识别服务 · ACRCloud / AudD", 12, Ui.ACCENT, false);
         recRow.setPadding(dp(2), dp(6), dp(2), dp(10));

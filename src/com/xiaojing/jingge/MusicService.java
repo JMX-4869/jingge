@@ -664,6 +664,7 @@ public class MusicService extends Service implements
                 playing ? "暂停" : "播放", servicePi(ACT_TOGGLE, 2)).build();
         Notification.Action aNext = new Notification.Action.Builder(
                 R.drawable.ic_next, "下一首", servicePi(ACT_NEXT, 3)).build();
+        boolean withRec = !"ball".equals(MainActivity.recEntry(this));
         Intent rec = new Intent(this, RecognizeActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent recPi = PendingIntent.getActivity(this, 6, rec, piFlags());
@@ -689,8 +690,8 @@ public class MusicService extends Service implements
                 .setColor(Ui.ACCENT)
                 .addAction(aPrev)
                 .addAction(aPlay)
-                .addAction(aNext)
-                .addAction(aRec);
+                .addAction(aNext);
+        if (withRec) b.addAction(aRec);
         b.setStyle(new Notification.MediaStyle()
                 .setMediaSession(session.getSessionToken())
                 .setShowActionsInCompactView(0, 1, 2));
@@ -711,6 +712,11 @@ public class MusicService extends Service implements
         } catch (Throwable t) {
             foreground = false;
         }
+    }
+
+    /** 设置里改了通知栏入口，叫一声就重刷 */
+    public void refreshNotification() {
+        updateNotification();
     }
 
     private void updateNotification() {
