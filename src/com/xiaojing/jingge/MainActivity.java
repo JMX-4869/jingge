@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.58";
+    private static final String VER = "0.59";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -376,6 +376,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
         requestedOnce = true;
         List<String> ps = new ArrayList<String>();
         ps.add(audioPermission());
+        ps.add(Manifest.permission.RECORD_AUDIO);
         if (Build.VERSION.SDK_INT >= 33) ps.add(Manifest.permission.POST_NOTIFICATIONS);
         requestPermissions(ps.toArray(new String[0]), REQ_PERM);
     }

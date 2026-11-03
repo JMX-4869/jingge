@@ -416,7 +416,8 @@ public class MusicService extends Service implements
             toastMain("还在听，等一下");
             return;
         }
-        if (checkSelfPermission("android.permission.RECORD_AUDIO")
+        if (Build.VERSION.SDK_INT >= 23
+                && checkSelfPermission("android.permission.RECORD_AUDIO")
                 != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             toastMain("没给麦克风权限：设置 → 应用 → 鲸歌 → 权限 → 麦克风");
             return;
