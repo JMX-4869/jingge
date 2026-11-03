@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.53";
+    private static final String VER = "0.54";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -1386,8 +1386,62 @@ public class MainActivity extends Activity implements MusicService.Listener {
         if ("notif".equals(v)) {
             BallService.setWanted(this, false);
             BallService.stop(this);
+        } else if (android.os.Build.VERSION.SDK_INT < 23
+                || android.provider.Settings.canDrawOverlays(this)) {
+            // 选了带悬浮球的入口，就把它起起来，不然选了跟没选一样
+            BallService.setWanted(this, true);
+            BallService.start(this);
+        } else {
+            pendingBall = true;
         }
         if (svc != null) svc.refreshNotification();
+    }
+
+    /** 通知栏体检：说不出原因就别让用户瞎试 */
+    private void showNotifCheck() {
+        final Dialog d = new Dialog(this);
+        LinearLayout box = dialogBox();
+        box.addView(text("通知栏体检", 15, Ui.TEXT, true));
+
+        TextView body = text(MusicService.selfCheck(this), 12, Ui.MUTED, false);
+        body.setPadding(0, dp(10), 0, dp(12));
+        body.setLineSpacing(dp(4), 1f);
+        box.addView(body);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.END);
+        box.addView(row);
+
+        TextView sys = text("去通知设置", 13, Ui.ACCENT, true);
+        sys.setPadding(dp(12), dp(8), dp(4), dp(8));
+        sys.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                d.dismiss();
+                try {
+                    Intent i = new Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                            .putExtra("android.provider.extra.APP_PACKAGE", getPackageName())
+                            .putExtra("app_package", getPackageName())
+                            .putExtra("app_uid", getApplicationInfo().uid);
+                    startActivity(i);
+                } catch (Throwable t) {
+                    Toast.makeText(MainActivity.this, "打不开通知设置", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+        row.addView(sys);
+
+        TextView close = text("知道了", 13, Ui.MUTED, false);
+        close.setPadding(dp(12), dp(8), dp(12), dp(8));
+        close.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                d.dismiss();
+            }
+        });
+        row.addView(close);
+
+        d.setContentView(box);
+        dialogWindow(d);
+        d.show();
     }
 
     /** 悬浮窗被系统拒了（MIUI/HyperOS 常见）：给一条能走通的路，别只弹一句话 */
@@ -2937,6 +2991,17 @@ public class MainActivity extends Activity implements MusicService.Listener {
             }
         });
         drawer.addView(settingsItem);
+
+        TextView notifItem = text("通知栏体检", 15, Ui.MUTED, false);
+        notifItem.setPadding(dp(24), dp(14), dp(24), dp(14));
+        notifItem.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                closeDrawer();
+                showNotifCheck();
+            }
+        });
+        drawer.addView(notifItem);
 
         TextView aboutItem = text("关于", 15, Ui.MUTED, false);
         aboutItem.setPadding(dp(24), dp(14), dp(24), dp(14));

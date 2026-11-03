@@ -47,6 +47,8 @@ public class MusicService extends Service implements
     public static final String ACT_STOP = "com.xiaojing.jingge.STOP";
 
     private static final String CHANNEL = "playback";
+    static boolean fg = false;
+    static String lastErr = null;
     private static final int NOTIF_ID = 1001;
 
     public class LocalBinder extends Binder {
@@ -707,6 +709,35 @@ public class MusicService extends Service implements
         return b.build();
     }
 
+    /** 通知为什么不出来 —— 让 App 自己说，别让用户猜 */
+    static String selfCheck(Context c) {
+        StringBuilder sb = new StringBuilder();
+        NotificationManager m = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (m == null) return "取不到通知服务";
+        boolean allowed = Build.VERSION.SDK_INT < 24 || m.areNotificationsEnabled();
+        sb.append("．通知总开关：").append(allowed ? "开" : "关着（系统设置 → 通知 → 鲸歌）").append('\n');
+        if (Build.VERSION.SDK_INT >= 33) {
+            boolean p = c.checkSelfPermission("android.permission.POST_NOTIFICATIONS")
+                    == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            sb.append("．通知权限：").append(p ? "已给" : "没给（设置里点一下会再问）").append('\n');
+        }
+        if (Build.VERSION.SDK_INT >= 26) {
+            NotificationChannel ch = m.getNotificationChannel(CHANNEL);
+            if (ch == null) {
+                sb.append("．频道「播放控制」：还没建\n");
+            } else {
+                int im = ch.getImportance();
+                String s = im == NotificationManager.IMPORTANCE_NONE ? "被你关掉了"
+                        : im >= NotificationManager.IMPORTANCE_DEFAULT ? "正常"
+                        : "低（会缩成一行，展开才看得见按钮）";
+                sb.append("．频道「播放控制」：").append(s).append('\n');
+            }
+        }
+        sb.append("．前台服务：").append(fg ? "在跑" : "没起（先放一首歌）").append('\n');
+        if (lastErr != null) sb.append("．上次起通知失败：").append(lastErr).append('\n');
+        return sb.toString();
+    }
+
     private void ensureForeground() {
         try {
             Notification n = buildNotification();
@@ -717,9 +748,13 @@ public class MusicService extends Service implements
                 startForeground(NOTIF_ID, n);
             }
             foreground = true;
+            fg = true;
+            lastErr = null;
             if (session != null) session.setActive(true);
         } catch (Throwable t) {
             foreground = false;
+            fg = false;
+            lastErr = t.getClass().getSimpleName() + "：" + t.getMessage();
         }
     }
 
