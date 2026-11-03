@@ -3,6 +3,7 @@ package com.xiaojing.jingge;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.LinearGradient;
+import android.graphics.Path;
 import android.graphics.Paint;
 import android.graphics.RadialGradient;
 import android.graphics.Shader;
@@ -78,6 +79,9 @@ public class StarfieldView extends View {
     private float warpX, warpY, warpA, warpLen;
     private long warpAt;
     private static final int CYAN = 0xFF7BE9FF;
+    private static final int VIOLET = 0xFF9B7BFF;
+    private final Paint glowP = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path beamPath = new Path();
 
     public StarfieldView(Context c) {
         super(c);
@@ -261,6 +265,8 @@ public class StarfieldView extends View {
             }
         }
 
+        drawRings(cv, w, h, t, appear);
+        drawBeams(cv, w, h, t, appear);
         drawHorizon(cv, w, h, t, appear);
         drawStreaks(cv, w, h, dt, appear);
         drawScan(cv, w, h, t);
@@ -315,6 +321,66 @@ public class StarfieldView extends View {
         if (a < 0) a = 0;
         if (a > 255) a = 255;
         return (color & 0x00FFFFFF) | (a << 24);
+    }
+
+    /** 同心刻度环：三个环反向缓慢旋转，HUD 的骨架 */
+    private void drawRings(Canvas cv, int w, int h, float t, float appear) {
+        if (appear <= 0.01f) return;
+        float cx = w * 0.74f;
+        float cy = h * 0.32f;
+        float[] radii = {w * 0.30f, w * 0.42f, w * 0.54f};
+        float[] speed = {5.5f, -3.4f, 2.2f};
+        hud.setStyle(Paint.Style.STROKE);
+        for (int r = 0; r < radii.length; r++) {
+            float rad = radii[r];
+            if (rad <= 0) continue;
+            int baseA = (int) ((r == 1 ? 26 : 18) * appear);
+            hud.setStrokeWidth(Math.max(1f, density * 0.6f));
+            hud.setColor(alpha(r == 2 ? VIOLET : Ui.ACCENT, baseA));
+            cv.drawCircle(cx, cy, rad, hud);
+
+            // 刻度：每 7.5° 一根短线
+            float start = t * speed[r] * (float) Math.PI / 180f;
+            int ticks = 48;
+            for (int i = 0; i < ticks; i++) {
+                float a = start + i * (float) (Math.PI * 2 / ticks);
+                boolean major = i % 6 == 0;
+                float inner = rad - (major ? 9f : 5f) * density;
+                float px = cx + (float) Math.cos(a) * rad;
+                float py = cy + (float) Math.sin(a) * rad;
+                float qx = cx + (float) Math.cos(a) * inner;
+                float qy = cy + (float) Math.sin(a) * inner;
+                hud.setStrokeWidth(Math.max(1f, density * (major ? 1.1f : 0.6f)));
+                hud.setColor(alpha(major ? CYAN : Ui.ACCENT,
+                        (int) ((major ? baseA + 26 : baseA) * appear)));
+                cv.drawLine(px, py, qx, qy, hud);
+            }
+        }
+    }
+
+    /** 从地平线消失点往上打的几道光柱，缓慢摆 */
+    private void drawBeams(Canvas cv, int w, int h, float t, float appear) {
+        if (appear <= 0.01f) return;
+        float vpx = w * 0.5f;
+        float vpy = h * 0.80f;
+        hud.setStyle(Paint.Style.FILL);
+        beamPath.reset();
+        for (int i = 0; i < 4; i++) {
+            float sway = (float) Math.sin(t * (0.16f + i * 0.05f) + i * 1.9f);
+            float ang = -1.5708f + (i - 1.5f) * 0.30f + sway * 0.05f;
+            float topX = vpx + (float) Math.cos(ang) * h * 0.95f;
+            float topY = vpy + (float) Math.sin(ang) * h * 0.95f;
+            float spread = (26f + i * 10f) * density;
+            beamPath.reset();
+            beamPath.moveTo(vpx - spread * 0.25f, vpy);
+            beamPath.lineTo(vpx + spread * 0.25f, vpy);
+            beamPath.lineTo(topX + spread, topY);
+            beamPath.lineTo(topX - spread, topY);
+            beamPath.close();
+            int a = (int) ((i % 2 == 0 ? 7 : 5) * appear);
+            hud.setColor(alpha(i % 2 == 0 ? CYAN : VIOLET, a));
+            cv.drawPath(beamPath, hud);
+        }
     }
 
     /** 底部透视网格：越远越密、越往前跑，科幻片里的"地平线" */

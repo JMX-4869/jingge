@@ -10,6 +10,7 @@ import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Shader;
+import android.graphics.SweepGradient;
 import android.graphics.drawable.Drawable;
 import android.os.SystemClock;
 
@@ -33,6 +34,10 @@ final class GlowDrawable extends Drawable {
 
     private LinearGradient shine;
     private int shineW;
+    private SweepGradient neon;
+    private int neonW;
+    private final int cyan = 0xFF7BE9FF;
+    private final int violet = 0xFF9B7BFF;
     /** 呼吸/扫光从这里开始计时 */
     private final long born = SystemClock.uptimeMillis();
 
@@ -95,6 +100,26 @@ final class GlowDrawable extends Drawable {
             p.setColor(alpha(accent, (int) (46 + 30 * breathe)));
             c.drawRoundRect(rf, radius, radius, p);
 
+            float phase = (age % 8400L) / 8400f;
+
+            // 三色霓虹边：整圈颜色在慢慢转
+            if (b.width() > 8) {
+                float cx = b.exactCenterX();
+                float cy = b.exactCenterY();
+                if (neon == null || neonW != b.width()) {
+                    neonW = b.width();
+                    neon = new SweepGradient(cx, cy, new int[]{
+                            alpha(accent, 30), alpha(cyan, 62), alpha(violet, 40),
+                            alpha(accent, 30)}, null);
+                }
+                mat.setRotate(phase * 360f, cx, cy);
+                neon.setLocalMatrix(mat);
+                p.setShader(neon);
+                p.setStrokeWidth(1.4f);
+                c.drawRoundRect(rf, radius, radius, p);
+                p.setShader(null);
+            }
+
             // 沿边扫光：一直走，4.2 秒一圈
             if (b.width() > 8) {
                 if (shine == null || shineW != b.width()) {
@@ -108,7 +133,6 @@ final class GlowDrawable extends Drawable {
                             alpha(accent, 0),
                     }, new float[]{0f, 0.40f, 0.50f, 0.60f, 1f}, Shader.TileMode.CLAMP);
                 }
-                float phase = (age % 4200L) / 4200f;
                 mat.setTranslate(-shineW + phase * shineW * 2f, 0);
                 shine.setLocalMatrix(mat);
                 p.setShader(shine);
