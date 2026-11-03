@@ -2,6 +2,7 @@ package com.xiaojing.jingge;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.RadialGradient;
 import android.graphics.Shader;
@@ -63,6 +64,21 @@ public class StarfieldView extends View {
     private final float[] mlife = new float[2];
     private long nextMeteor;
 
+    // 科幻层：透视网格地平线、扫描光带、超空间速度线
+    private final Paint hud = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private LinearGradient scanGrad;
+    private float scanH;
+    private final int STREAK = 30;
+    private final float[] sx = new float[STREAK];
+    private final float[] sy = new float[STREAK];
+    private final float[] sv = new float[STREAK];
+    private final float[] sl = new float[STREAK];
+    private final float[] sa = new float[STREAK];
+    private long nextWarp;
+    private float warpX, warpY, warpA, warpLen;
+    private long warpAt;
+    private static final int CYAN = 0xFF7BE9FF;
+
     public StarfieldView(Context c) {
         super(c);
         density = c.getResources().getDisplayMetrics().density;
@@ -94,6 +110,13 @@ public class StarfieldView extends View {
             }
         }
         for (int i = 0; i < 2; i++) mlife[i] = -1f;
+        for (int i = 0; i < STREAK; i++) {
+            sx[i] = rnd.nextFloat();
+            sy[i] = rnd.nextFloat();
+            sv[i] = 0.10f + rnd.nextFloat() * 0.26f;
+            sl[i] = 0.02f + rnd.nextFloat() * 0.05f;
+            sa[i] = 0.10f + rnd.nextFloat() * 0.22f;
+        }
         LIVE.add(new WeakReference<StarfieldView>(this));
     }
 
@@ -149,6 +172,10 @@ public class StarfieldView extends View {
                 Ui.blend(Ui.ACCENT, Ui.BG, 0.92f), Ui.BG, Shader.TileMode.CLAMP);
         g3 = new RadialGradient(w * 0.52f, h * 0.58f, R * 0.78f,
                 Ui.blend(Ui.ACCENT, Ui.BG, 0.95f), Ui.BG, Shader.TileMode.CLAMP);
+        scanH = h * 0.22f;
+        scanGrad = new LinearGradient(0, 0, 0, scanH, new int[]{
+                alpha(Ui.ACCENT, 0), alpha(Ui.ACCENT, 22), alpha(CYAN, 9), alpha(Ui.ACCENT, 0)},
+                null, Shader.TileMode.CLAMP);
     }
 
     @Override
@@ -234,6 +261,11 @@ public class StarfieldView extends View {
             }
         }
 
+        drawHorizon(cv, w, h, t, appear);
+        drawStreaks(cv, w, h, dt, appear);
+        drawScan(cv, w, h, t);
+        drawWarp(cv, w, h, now);
+
         // 流星：一直都会有，间隔随机
         if (nextMeteor == 0 || now > nextMeteor) {
             spawnMeteor();
@@ -276,6 +308,107 @@ public class StarfieldView extends View {
         if (running && now - lastFrame >= 28) {
             lastFrame = now;
             postInvalidateOnAnimation();
+        }
+    }
+
+    private static int alpha(int color, int a) {
+        if (a < 0) a = 0;
+        if (a > 255) a = 255;
+        return (color & 0x00FFFFFF) | (a << 24);
+    }
+
+    /** 底部透视网格：越远越密、越往前跑，科幻片里的"地平线" */
+    private void drawHorizon(Canvas cv, int w, int h, float t, float appear) {
+        float horizon = h * 0.80f;
+        float vpx = w * 0.5f;
+        hud.setShader(null);
+        hud.setStyle(Paint.Style.STROKE);
+        hud.setStrokeWidth(Math.max(1f, density * 0.7f));
+
+        // 竖线：向消失点收
+        for (int i = -7; i <= 7; i++) {
+            float bx = vpx + i * w * 0.19f;
+            int a = (int) ((i == 0 ? 46 : 30 - Math.abs(i) * 2.2f) * appear);
+            hud.setColor(alpha(Ui.ACCENT, a));
+            cv.drawLine(vpx, horizon, bx, h * 1.04f, hud);
+        }
+
+        // 横线：间距按透视压缩，整体缓慢往前推
+        float phase = (t * 0.11f) % 1f;
+        for (int i = 0; i < 9; i++) {
+            float k = (i + phase) / 9f;
+            float y = horizon + (h * 0.25f) * k * k;
+            int a = (int) ((8 + 52 * k) * appear);
+            hud.setColor(alpha(Ui.ACCENT, a));
+            cv.drawLine(0, y, w, y, hud);
+        }
+
+        // 地平线本身
+        hud.setStrokeWidth(Math.max(1f, density * 1.1f));
+        hud.setColor(alpha(CYAN, (int) (58 * appear)));
+        cv.drawLine(0, horizon, w, horizon, hud);
+    }
+
+    /** 超空间速度线：短线往上飞，越近越长越亮 */
+    private void drawStreaks(Canvas cv, int w, int h, float dt, float appear) {
+        hud.setStyle(Paint.Style.STROKE);
+        for (int i = 0; i < STREAK; i++) {
+            sy[i] -= sv[i] * dt;
+            if (sy[i] < -0.05f) {
+                sy[i] = 1.05f;
+                sx[i] = rnd.nextFloat();
+                sv[i] = 0.10f + rnd.nextFloat() * 0.26f;
+                sa[i] = 0.10f + rnd.nextFloat() * 0.22f;
+            }
+            float px = sx[i] * w;
+            float py = sy[i] * h;
+            float len = sl[i] * h * (0.4f + (1f - sy[i]) * 1.6f);
+            hud.setStrokeWidth(Math.max(1f, density * 0.8f));
+            hud.setColor(alpha(CYAN, (int) (sa[i] * 210 * appear)));
+            cv.drawLine(px, py, px, py + len, hud);
+        }
+    }
+
+    /** 一道很淡的扫描光带从上往下走 */
+    private void drawScan(Canvas cv, int w, int h, float t) {
+        if (scanGrad == null) return;
+        float span = h + scanH;
+        float y = (t * 34f) % span - scanH;
+        int save = cv.save();
+        cv.translate(0, y);
+        hud.setShader(scanGrad);
+        hud.setStyle(Paint.Style.FILL);
+        cv.drawRect(0, 0, w, scanH, hud);
+        hud.setShader(null);
+        cv.restoreToCount(save);
+    }
+
+    /** 偶尔一道贯穿画面的跃迁光 */
+    private void drawWarp(Canvas cv, int w, int h, long now) {
+        if (warpAt == 0) {
+            warpAt = now;
+            nextWarp = now + 9000 + (long) (rnd.nextFloat() * 9000);
+        }
+        if (warpA <= 0f && now > nextWarp) {
+            warpA = 1f;
+            warpAt = now;
+            warpX = rnd.nextFloat() * w * 0.5f;
+            warpY = rnd.nextFloat() * h * 0.3f;
+            warpLen = w * (0.55f + rnd.nextFloat() * 0.4f);
+            nextWarp = now + 9000 + (long) (rnd.nextFloat() * 9000);
+        }
+        if (warpA <= 0f) return;
+        float age = (now - warpAt) / 1000f;
+        warpA = Math.max(0f, 1f - age / 0.9f);
+        float x = warpX + age * w * 1.35f;
+        float y = warpY + age * h * 0.30f;
+        hud.setStyle(Paint.Style.STROKE);
+        for (int k = 0; k < 3; k++) {
+            hud.setStrokeWidth((3 - k) * density * 0.9f);
+            hud.setColor(alpha(k == 0 ? 0xFFFFFFFF : CYAN, (int) (warpA * (150 - k * 45))));
+            float x0 = x - warpLen * (0.55f + k * 0.25f);
+            float y0 = y - warpLen * (0.13f + k * 0.06f);
+            cv.drawLine(x0, y0, x, y, hud);
         }
     }
 
