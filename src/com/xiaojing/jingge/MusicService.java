@@ -60,6 +60,7 @@ public class MusicService extends Service implements
     private String lyricLine = null;
     static String lastErr = null;
     private static final int NOTIF_ID = 1001;
+    private static final int NOTIF_ID_REC = 1002;
 
     public class LocalBinder extends Binder {
         public MusicService service() {
@@ -222,6 +223,7 @@ public class MusicService extends Service implements
 
     @Override
     public void onDestroy() {
+        if (nm != null) nm.cancel(NOTIF_ID_REC);
         releasePlayer();
         try {
             unregisterReceiver(noisyReceiver);
@@ -542,6 +544,8 @@ public class MusicService extends Service implements
         recStatus = "正在听… 0s";
         promoteMicForeground();
         updateNotification();
+        showRecCard();
+        toastMain("开始听，8 秒别停");
 
         new Thread(new Runnable() {
             @Override
@@ -570,6 +574,7 @@ public class MusicService extends Service implements
                                 if (!recBusy) return;
                                 recStatus = "正在听… " + secs + "s";
                                 updateNotification();
+                                showRecCard();
                             }
                         });
                     }
@@ -619,11 +624,13 @@ public class MusicService extends Service implements
             public void run() {
                 toastMain(say);
                 updateNotification();
+                showRecCard();
                 if (resume && !playing) play();
                 main.postDelayed(new Runnable() {
                     public void run() {
                         recStatus = null;
                         updateNotification();
+                        showRecCard();
                         if (!playing && queue.current() == null) stopSelf();
                     }
                 }, 8000);
@@ -1005,6 +1012,47 @@ public class MusicService extends Service implements
         return sb.toString();
     }
 
+    /** 常驻的「听音识曲」卡：按钮一直在，点了才录 */
+    private Notification buildRecNotification() {
+        Notification.Builder b;
+        if (Build.VERSION.SDK_INT >= 26) {
+            b = new Notification.Builder(this, CHANNEL);
+        } else {
+            b = new Notification.Builder(this);
+        }
+        String text = recBusy ? (recStatus == null ? "正在听…" : recStatus)
+                : (recStatus != null ? recStatus : "点一下开始听，外放或哼都行");
+        b.setSmallIcon(R.drawable.stat_music)
+                .setContentTitle("听音识曲")
+                .setContentText(text)
+                .setShowWhen(false)
+                .setOnlyAlertOnce(true)
+                .setOngoing(!recBusy)
+                .setCategory(Notification.CATEGORY_SERVICE)
+                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .setColor(Ui.ACCENT)
+                .setContentIntent(PendingIntent.getActivity(this, 8,
+                        new Intent(this, MainActivity.class).setAction("open")
+                                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP
+                                        | Intent.FLAG_ACTIVITY_CLEAR_TOP), piFlags()))
+                .addAction(new Notification.Action.Builder(
+                        R.drawable.ic_scan, recBusy ? "正在听…" : "开始识别",
+                        servicePi(ACT_REC, 9)).build());
+        if (Build.VERSION.SDK_INT >= 24 && !recBusy) {
+            b.setStyle(new Notification.BigTextStyle().bigText(text));
+        }
+        return b.build();
+    }
+
+    private void showRecCard() {
+        if (nm == null) return;
+        try {
+            nm.notify(NOTIF_ID_REC, buildRecNotification());
+        } catch (Throwable t) {
+            lastErr = "识曲卡：" + t.getMessage();
+        }
+    }
+
     private void ensureForeground() {
         try {
             Notification n = buildNotification();
@@ -1017,6 +1065,7 @@ public class MusicService extends Service implements
             foreground = true;
             fg = true;
             lastErr = null;
+            showRecCard();
             if (Build.VERSION.SDK_INT >= 24 && nm != null) {
                 notifBlocked = !nm.areNotificationsEnabled();
             }
