@@ -234,7 +234,9 @@ final class Recognize {
             case 1003:
                 return "签名没通过 —— Host 和 Key 可能不是同一个区的";
             case 2000:
-                return "本机时间偏差太大，签名会失效";
+                return "录音出错（麦克风权限没给，或者被别的应用占着）";
+            case 2004:
+                return "服务端算不出指纹：这段几乎是静音（录到的音量太低）";
             case 3001:
                 return "这段音频算不出指纹（太安静或太短，靠近点再录）";
             case 3003:

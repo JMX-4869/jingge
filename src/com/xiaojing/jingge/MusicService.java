@@ -559,10 +559,31 @@ public class MusicService extends Service implements
                     int min = android.media.AudioRecord.getMinBufferSize(sr,
                             android.media.AudioFormat.CHANNEL_IN_MONO,
                             android.media.AudioFormat.ENCODING_PCM_16BIT);
-                    r = new android.media.AudioRecord(android.media.MediaRecorder.AudioSource.MIC,
-                            sr, android.media.AudioFormat.CHANNEL_IN_MONO,
-                            android.media.AudioFormat.ENCODING_PCM_16BIT,
-                            Math.max(min, 4096));
+                    android.media.AudioRecord tmp = null;
+                    try {
+                        tmp = new android.media.AudioRecord(
+                                android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                                sr, android.media.AudioFormat.CHANNEL_IN_MONO,
+                                android.media.AudioFormat.ENCODING_PCM_16BIT,
+                                Math.max(min, 4096));
+                        if (tmp.getState() != android.media.AudioRecord.STATE_INITIALIZED) {
+                            try {
+                                tmp.release();
+                            } catch (Throwable ignored) {
+                            }
+                            tmp = null;
+                        }
+                    } catch (Throwable ignored) {
+                        tmp = null;
+                    }
+                    if (tmp == null) {
+                        tmp = new android.media.AudioRecord(
+                                android.media.MediaRecorder.AudioSource.MIC,
+                                sr, android.media.AudioFormat.CHANNEL_IN_MONO,
+                                android.media.AudioFormat.ENCODING_PCM_16BIT,
+                                Math.max(min, 4096));
+                    }
+                    r = tmp;
                     r.startRecording();
                     while (got < total * 2) {
                         int n = r.read(pcm, got, Math.min(4096, total * 2 - got));
@@ -591,6 +612,18 @@ public class MusicService extends Service implements
                 }
                 if (got <= 0) {
                     finishRec(null, "录不到声音（麦克风被别的应用占着？）", wasPlaying);
+                    return;
+                }
+                long sum = 0;
+                int n2 = got / 2;
+                for (int i = 0; i < n2; i++) {
+                    short v = (short) ((pcm[i * 2] & 0xFF) | (pcm[i * 2 + 1] << 8));
+                    sum += (long) v * v;
+                }
+                int rms = n2 == 0 ? 0 : (int) Math.sqrt((double) sum / n2);
+                if (rms < 60) {
+                    finishRec(null, "录到的几乎是静音（音量 " + rms
+                            + "）—— 检查麦克风权限，或者别贴太近", wasPlaying);
                     return;
                 }
                 byte[] clip = new byte[got];
