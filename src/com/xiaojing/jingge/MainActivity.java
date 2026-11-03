@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.67";
+    private static final String VER = "0.68";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -151,6 +151,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
     private Lyric currentLyric;
     private int nowLine = -2;
     private static final int REQ_COVER = 51;
+    private static final int REQ_CAPTURE = 53;
     private static final int REQ_EDIT = 52;
 
     @Override
@@ -1705,6 +1706,26 @@ public class MainActivity extends Activity implements MusicService.Listener {
         d.show();
     }
 
+    private View srcChip(final Dialog d, final String name, final String id, String cur) {
+        final boolean on = id.equals(cur);
+        TextView t = text(name, 13, on ? Ui.ACCENT : Ui.MUTED, on);
+        t.setPadding(dp(14), dp(8), dp(14), dp(8));
+        t.setBackground(Ui.roundStroke(0, on ? Ui.ACCENT : Ui.LINE, dp(10), dp(1)));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, 0, dp(8), 0);
+        t.setLayoutParams(lp);
+        t.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                Ai.prefs(MainActivity.this).edit().putString("rec_src", id).apply();
+                d.dismiss();
+                if ("capture".equals(id)) Capture.ask(MainActivity.this, REQ_CAPTURE);
+                showRecSettings();
+            }
+        });
+        return t;
+    }
+
     private View entryChip(final Dialog d, final String name, final String id, String cur) {
         final boolean on = id.equals(cur);
         TextView t = text(name, 13, on ? Ui.ACCENT : Ui.MUTED, on);
@@ -1883,6 +1904,13 @@ public class MainActivity extends Activity implements MusicService.Listener {
     @Override
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
+        if (req == REQ_CAPTURE) {
+            boolean ok = res == RESULT_OK && Capture.take(this, res, data);
+            Toast.makeText(this, ok ? "内录已授权，可以点识曲了"
+                            : "没同意，内录用不了（还是用外放吧）",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
         if (req == REQ_EDIT && res == RESULT_OK) {
             lyricSongId = -1;
             lyricStamp = -1;
@@ -2066,6 +2094,42 @@ public class MainActivity extends Activity implements MusicService.Listener {
         box.addView(rl);
 
         String entry = recEntry(this);
+        final String src = Ai.prefs(this).getString("rec_src", "mic");
+        TextView slabel = text("听音来源", 11, Ui.DIM, false);
+        slabel.setPadding(0, dp(12), 0, dp(6));
+        box.addView(slabel);
+
+        LinearLayout srcRow = new LinearLayout(this);
+        srcRow.setOrientation(LinearLayout.HORIZONTAL);
+        box.addView(srcRow);
+        srcRow.addView(srcChip(d, "外放（麦克风）", "mic", src));
+        srcRow.addView(srcChip(d, "手机内录", "capture", src));
+
+        if ("capture".equals(src)) {
+            TextView capState = text(Capture.ready()
+                            ? "内录已授权，可以用了"
+                            : (Capture.supported() ? "还没授权 → 点这里让系统确认"
+                            : "这个系统（Android 9 及以下）不支持内录"),
+                    11, Capture.ready() ? Ui.ACCENT : Ui.MUTED, false);
+            capState.setPadding(0, dp(8), 0, dp(4));
+            capState.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) {
+                    if (!Capture.supported()) {
+                        Toast.makeText(MainActivity.this, "系统太老，没有内录接口",
+                                Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    Capture.ask(MainActivity.this, REQ_CAPTURE);
+                }
+            });
+            box.addView(capState);
+
+            TextView capNote = text("系统会弹「开始录制或投放」——同意后，"
+                    + "只有允许被录的 App 的声音才抓得到；戴耳机的歌也能认。", 10, Ui.DIM, false);
+            capNote.setLineSpacing(dp(3), 1f);
+            box.addView(capNote);
+        }
+
         TextView elabel = text("识曲入口", 11, Ui.DIM, false);
         elabel.setPadding(0, dp(10), 0, dp(6));
         box.addView(elabel);

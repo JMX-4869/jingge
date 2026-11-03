@@ -515,6 +515,21 @@ public class MusicService extends Service implements
     }
 
     /** 录音要有 mic 类型的前台服务（Android 11+ 才认这个类型） */
+    /** 内录要带 mediaProjection 类型的前台服务（Android 14 硬要求） */
+    private void promoteCaptureForeground() {
+        int type = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK;
+        if (Build.VERSION.SDK_INT >= 30) type |= ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE;
+        if (Build.VERSION.SDK_INT >= 29) type |= ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION;
+        try {
+            startForeground(NOTIF_ID, buildNotification(), type);
+        } catch (Throwable t) {
+            lastErr = "内录前台：" + t.getMessage();
+        }
+    }
+
+    private static final class InnerDone extends Exception {
+    }
+
     private void promoteMicForeground() {
         if (Build.VERSION.SDK_INT < 30) return;
         try {
@@ -532,7 +547,14 @@ public class MusicService extends Service implements
             toastMain("还在听，等一下");
             return;
         }
-        if (Build.VERSION.SDK_INT >= 23
+        final boolean inner = "capture".equals(Ai.prefs(this).getString("rec_src", "mic"));
+        if (inner) {
+            if (!Capture.ready()) {
+                toastMain("内录还没授权：设置 → 听音识曲 → 授权内录");
+                return;
+            }
+            promoteCaptureForeground();
+        } else if (Build.VERSION.SDK_INT >= 23
                 && checkSelfPermission("android.permission.RECORD_AUDIO")
                 != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             toastMain("没给麦克风权限：设置 → 应用 → 鲸歌 → 权限 → 麦克风");
@@ -559,6 +581,28 @@ public class MusicService extends Service implements
                     int min = android.media.AudioRecord.getMinBufferSize(sr,
                             android.media.AudioFormat.CHANNEL_IN_MONO,
                             android.media.AudioFormat.ENCODING_PCM_16BIT);
+                    if (inner) {
+                        r = Capture.open(sr);
+                        if (r == null) {
+                            throw new IllegalStateException("内录起不来（这个播放器可能不允许被录）");
+                        }
+                        r.startRecording();
+                        while (got < total * 2) {
+                            int n = r.read(pcm, got, Math.min(4096, total * 2 - got));
+                            if (n <= 0) break;
+                            got += n;
+                            final int secs = Math.min(7, got / 2 / sr);
+                            main.post(new Runnable() {
+                                public void run() {
+                                    if (!recBusy) return;
+                                    recStatus = "正在听（内录）… " + secs + "s";
+                                    updateNotification();
+                                    showRecCard();
+                                }
+                            });
+                        }
+                        throw new InnerDone();
+                    }
                     android.media.AudioRecord tmp = null;
                     try {
                         tmp = new android.media.AudioRecord(
@@ -599,8 +643,11 @@ public class MusicService extends Service implements
                             }
                         });
                     }
+                } catch (InnerDone ignored) {
+                    // 内录已经录完，正常往下走
                 } catch (Throwable t) {
                     got = 0;
+                    if (inner) lastErr = String.valueOf(t.getMessage());
                 } finally {
                     try {
                         if (r != null) {
@@ -611,7 +658,9 @@ public class MusicService extends Service implements
                     }
                 }
                 if (got <= 0) {
-                    finishRec(null, "录不到声音（麦克风被别的应用占着？）", wasPlaying);
+                    finishRec(null, inner
+                            ? ("内录没拿到声音" + (lastErr == null ? "" : "：" + lastErr))
+                            : "录不到声音（麦克风被别的应用占着？）", wasPlaying);
                     return;
                 }
                 long sum = 0;
