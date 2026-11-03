@@ -21,6 +21,28 @@ final class Capture {
     }
 
     static MediaProjection projection = null;
+    private static int pendingCode = 0;
+    private static Intent pendingData = null;
+
+    /** Activity 拿到系统返回后先存着，等服务的带类型前台起来再取 */
+    static void store(int resultCode, Intent data) {
+        pendingCode = resultCode;
+        pendingData = data == null ? null : new Intent(data);
+    }
+
+    static boolean hasPending() {
+        return pendingCode != 0 && pendingData != null;
+    }
+
+    /** 必须在 startForeground(含 mediaProjection 类型) 之后调用 */
+    static boolean takePending(Context c) {
+        if (!supported() || !hasPending()) return false;
+        int code = pendingCode;
+        Intent data = pendingData;
+        pendingCode = 0;
+        pendingData = null;
+        return take(c, code, data);
+    }
 
     static boolean supported() {
         return Build.VERSION.SDK_INT >= 29;

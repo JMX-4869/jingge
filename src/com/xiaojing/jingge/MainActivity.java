@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.69";
+    private static final String VER = "0.70";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -1706,6 +1706,47 @@ public class MainActivity extends Activity implements MusicService.Listener {
         d.show();
     }
 
+    /** 先说清楚为什么要点，再弹系统的录屏授权框 */
+    private void showCaptureIntro(final Dialog parent) {
+        final Dialog d = new Dialog(this);
+        LinearLayout box = dialogBox();
+        box.addView(text("要开一次录屏授权", 15, Ui.TEXT, true));
+        TextView t = text("系统只允许「看过屏幕」的 App 去听内部声音，所以会弹 "
+                + "「开始录制或投放屏幕」。\n\n"
+                + "它听起来像录屏，但鲸歌只拿走音频那一路，不截屏、不上传画面。\n\n"
+                + "点「立即开始」，再点「开始识别」就行了。", 12, Ui.MUTED, false);
+        t.setPadding(0, dp(10), 0, dp(12));
+        t.setLineSpacing(dp(3), 1f);
+        box.addView(t);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.END);
+        box.addView(row);
+
+        TextView no = text("算了", 13, Ui.MUTED, false);
+        no.setPadding(dp(12), dp(8), dp(16), dp(8));
+        no.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                d.dismiss();
+            }
+        });
+        row.addView(no);
+
+        TextView go = text("去授权", 13, Ui.ACCENT, true);
+        go.setPadding(dp(12), dp(8), dp(12), dp(8));
+        go.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                d.dismiss();
+                Capture.ask(MainActivity.this, REQ_CAPTURE);
+            }
+        });
+        row.addView(go);
+
+        d.setContentView(box);
+        dialogWindow(d);
+        d.show();
+    }
+
     private View srcChip(final Dialog d, final String name, final String id, String cur) {
         final boolean on = id.equals(cur);
         TextView t = text(name, 13, on ? Ui.ACCENT : Ui.MUTED, on);
@@ -1905,10 +1946,14 @@ public class MainActivity extends Activity implements MusicService.Listener {
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
         if (req == REQ_CAPTURE) {
-            boolean ok = res == RESULT_OK && Capture.take(this, res, data);
-            Toast.makeText(this, ok ? "内录已授权，可以点识曲了"
-                            : "没同意，内录用不了（还是用外放吧）",
-                    Toast.LENGTH_LONG).show();
+            if (res == RESULT_OK && data != null) {
+                Capture.store(res, data);
+                Toast.makeText(this, "授权拿到了；点「开始识别」时才会真正抓声音",
+                        Toast.LENGTH_LONG).show();
+            } else {
+                Toast.makeText(this, "没同意，内录用不了（还能用外放）",
+                        Toast.LENGTH_LONG).show();
+            }
             return;
         }
         if (req == REQ_EDIT && res == RESULT_OK) {
@@ -2120,7 +2165,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
                                 Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    Capture.ask(MainActivity.this, REQ_CAPTURE);
+                    showCaptureIntro(d);
                 }
             });
             box.addView(capState);

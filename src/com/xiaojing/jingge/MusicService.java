@@ -645,9 +645,14 @@ public class MusicService extends Service implements
         final String src = Ai.prefs(this).getString("rec_src", "mic");
         boolean capOn = "capture".equals(src) || "mix".equals(src);
         final boolean micOn = !"capture".equals(src);
+        if (capOn) {
+            // Android 14 要求：先起带 mediaProjection 类型的前台服务，再取 MediaProjection
+            promoteCaptureForeground();
+            if (!Capture.ready() && Capture.hasPending()) Capture.takePending(this);
+        }
         if (capOn && !Capture.ready()) {
             if (!micOn) {
-                toastMain("内录还没授权：设置 → 听音识曲 → 授权内录");
+                toastMain("内录没授权：设置 → 听音识曲 → 点「还没授权」那里让系统确认");
                 return;
             }
             capOn = false;   // 想内外一起但没授权，就先用麦克风
@@ -665,8 +670,7 @@ public class MusicService extends Service implements
         final boolean wasPlaying = playing;
         if (playing) pause();
         recStatus = "正在听… 0s";
-        if (useCap) promoteCaptureForeground();
-        else promoteMicForeground();
+        if (!useCap) promoteMicForeground();
         updateNotification();
         showRecCard();
         toastMain("开始听，8 秒别停（" + (useMic && useCap ? "内外一起"
