@@ -116,6 +116,14 @@ public class MusicService extends Service implements
         session.setCallback(new MediaSession.Callback() {
             @Override
             public void onCustomAction(String action, android.os.Bundle args) {
+                if (ACT_REC.equals(action)) {
+                    main.post(new Runnable() {
+                        public void run() {
+                            startBgRec();
+                        }
+                    });
+                    return;
+                }
                 if (ACT_WORD.equals(action)) {
                     main.post(new Runnable() {
                         public void run() {
@@ -851,6 +859,8 @@ public class MusicService extends Service implements
                         | PlaybackState.ACTION_SEEK_TO)
                 .setState(state, pos, playing ? 1f : 0f);
         try {
+            b.addCustomAction(new PlaybackState.CustomAction.Builder(
+                    ACT_REC, "识曲", R.drawable.ic_scan).build());
             PlaybackState.CustomAction ca = new PlaybackState.CustomAction.Builder(
                     ACT_WORD,
                     lm == 0 ? "歌词关" : lm == 2 ? "歌词锁" : "歌词",
@@ -988,6 +998,8 @@ public class MusicService extends Service implements
                 sb.append("．频道「播放控制」：").append(s).append('\n');
             }
         }
+        sb.append("．识曲入口：")
+                .append(MainActivity.recEntry(c)).append('\n');
         sb.append("．前台服务：").append(fg ? "在跑" : "没起（先放一首歌）").append('\n');
         if (lastErr != null) sb.append("．上次起通知失败：").append(lastErr).append('\n');
         return sb.toString();
