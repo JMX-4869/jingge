@@ -115,6 +115,17 @@ public class MusicService extends Service implements
                 | MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
         session.setCallback(new MediaSession.Callback() {
             @Override
+            public void onCustomAction(String action, android.os.Bundle args) {
+                if (ACT_WORD.equals(action)) {
+                    main.post(new Runnable() {
+                        public void run() {
+                            cycleLyricMode();
+                        }
+                    });
+                }
+            }
+
+            @Override
             public void onPlay() {
                 main.post(new Runnable() {
                     public void run() {
@@ -486,6 +497,7 @@ public class MusicService extends Service implements
             lyricLine = t.length() == 0 ? null : t;
         }
         updateNotification();
+        updateSession();
     }
 
     private void toastMain(String msg) {
@@ -829,6 +841,7 @@ public class MusicService extends Service implements
         long pos = position();
         int state = playing ? PlaybackState.STATE_PLAYING
                 : (s == null ? PlaybackState.STATE_NONE : PlaybackState.STATE_PAUSED);
+        int lm = lyricMode();
         PlaybackState.Builder b = new PlaybackState.Builder()
                 .setActions(PlaybackState.ACTION_PLAY
                         | PlaybackState.ACTION_PAUSE
@@ -837,16 +850,26 @@ public class MusicService extends Service implements
                         | PlaybackState.ACTION_SKIP_TO_PREVIOUS
                         | PlaybackState.ACTION_SEEK_TO)
                 .setState(state, pos, playing ? 1f : 0f);
+        try {
+            PlaybackState.CustomAction ca = new PlaybackState.CustomAction.Builder(
+                    ACT_WORD,
+                    lm == 0 ? "歌词关" : lm == 2 ? "歌词锁" : "歌词",
+                    R.drawable.ic_lyric).build();
+            b.addCustomAction(ca);
+        } catch (Throwable ignored) {
+        }
         session.setPlaybackState(b.build());
 
         if (s != null) {
+            String artist = s.subtitle();
+            String second = lyricLine != null ? lyricLine : artist;
             MediaMetadata.Builder m = new MediaMetadata.Builder()
                     .putString(MediaMetadata.METADATA_KEY_TITLE, s.title)
-                    .putString(MediaMetadata.METADATA_KEY_ARTIST, s.subtitle())
+                    .putString(MediaMetadata.METADATA_KEY_ARTIST, second)
+                    .putString(MediaMetadata.METADATA_KEY_ALBUM, artist)
+                    .putString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE, s.title)
+                    .putString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE, artist)
                     .putLong(MediaMetadata.METADATA_KEY_DURATION, duration());
-            if (s.album != null) {
-                m.putString(MediaMetadata.METADATA_KEY_ALBUM, s.album);
-            }
             session.setMetadata(m.build());
         }
     }
