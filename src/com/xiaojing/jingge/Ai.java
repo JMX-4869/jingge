@@ -23,6 +23,10 @@ final class Ai {
         void onText(String text, String error);
     }
 
+    interface LinesCb {
+        void onLines(String[] lines, String error);
+    }
+
     interface ModelsCb {
         void onModels(java.util.List<String> models, String error);
     }
@@ -294,6 +298,135 @@ final class Ai {
                 });
             }
         }).start();
+    }
+
+    /** 逐行翻译；返回的数组长度和输入一致。 */
+    static void translate(final Context ctx, final String lang, final String[] lines,
+                          final LinesCb cb) {
+        if (lines == null || lines.length == 0) {
+            cb.onLines(null, "这首歌没有可翻的歌词行");
+            return;
+        }
+        final String k = key(ctx);
+        if (k.length() < 12) {
+            cb.onLines(null, "还没填 API Key（设置 → AI）");
+            return;
+        }
+        final String url = base(ctx) + "/chat/completions";
+        final String m = model(ctx);
+        final int n = lines.length;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < n; i++) sb.append(i + 1).append(". ").append(lines[i]).append('\n');
+        final String ask = "把下面每一行歌词翻成" + lang + "：\n" + sb.toString()
+                + "\n只输出一个 JSON 字符串数组，元素数量必须正好 " + n
+                + " 个，顺序与上面一一对应；不要行号、不要引号以外的说明、不要解释。";
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String[] out = null;
+                String err = null;
+                HttpURLConnection c = null;
+                try {
+                    JSONObject body = new JSONObject();
+                    body.put("model", m);
+                    body.put("temperature", 0.2);
+                    body.put("max_tokens", Math.min(4000, 300 + n * 90));
+                    JSONArray msgs = new JSONArray();
+                    msgs.put(new JSONObject().put("role", "system").put("content",
+                            "你是歌词翻译。只做翻译：保留语气和情绪，句子短，不合并不拆行，不加解释。"));
+                    msgs.put(new JSONObject().put("role", "user").put("content", ask));
+                    body.put("messages", msgs);
+
+                    c = (HttpURLConnection) new URL(url).openConnection();
+                    c.setConnectTimeout(15000);
+                    c.setReadTimeout(90000);
+                    c.setRequestMethod("POST");
+                    c.setDoOutput(true);
+                    c.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+                    c.setRequestProperty("Authorization", "Bearer " + k);
+                    OutputStream os = c.getOutputStream();
+                    os.write(body.toString().getBytes("UTF-8"));
+                    os.close();
+
+                    int code = c.getResponseCode();
+                    InputStream in = code == 200 ? c.getInputStream() : c.getErrorStream();
+                    ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                    if (in != null) {
+                        byte[] buf = new byte[4096];
+                        int it;
+                        while ((it = in.read(buf)) != -1) bos.write(buf, 0, it);
+                        in.close();
+                    }
+                    String resp = new String(bos.toByteArray(), "UTF-8");
+                    if (code != 200) {
+                        err = "接口 " + code + "：" + shorten(resp);
+                    } else {
+                        JSONObject o = new JSONObject(resp);
+                        String content = o.getJSONArray("choices").getJSONObject(0)
+                                .getJSONObject("message").getString("content");
+                        String[] got = splitArray(content);
+                        if (got == null) {
+                            err = "模型没按格式回";
+                        } else if (got.length != n) {
+                            err = "行数对不上（要 " + n + " 行，回了 " + got.length + " 行）";
+                        } else {
+                            out = got;
+                        }
+                    }
+                } catch (Throwable t) {
+                    err = "连不上：" + t.getMessage();
+                } finally {
+                    if (c != null) c.disconnect();
+                }
+                final String[] fOut = out;
+                final String fErr = err;
+                MAIN.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        cb.onLines(fOut, fErr);
+                    }
+                });
+            }
+        }).start();
+    }
+
+    /** 从模型回复里抠出字符串数组：优先 JSON，其次按行拆。 */
+    static String[] splitArray(String content) {
+        if (content == null) return null;
+        String s = content.trim();
+        int a = s.indexOf('[');
+        int b = s.lastIndexOf(']');
+        if (a >= 0 && b > a) {
+            String body = s.substring(a, b + 1);
+            try {
+                JSONArray arr = new JSONArray(body);
+                String[] out = new String[arr.length()];
+                for (int i = 0; i < arr.length(); i++) out[i] = arr.optString(i, "");
+                return out;
+            } catch (Throwable ignored) {
+            }
+            // 纯文本数组、每条一行
+            String[] parts = body.substring(1, body.length() - 1).split("\n");
+            java.util.List<String> list = new java.util.ArrayList<String>();
+            for (String p : parts) {
+                String v = p.trim().replaceAll("^[,]+|[,]+$", "").trim();
+                v = v.replaceAll("^\"|\"$", "").trim();
+                v = v.replaceAll("^\\\"|\\\"$", "").trim();
+                if (v.length() > 0) list.add(v);
+            }
+            if (list.size() > 0) return list.toArray(new String[0]);
+        }
+        String[] lines = s.replace("\r", "").split("\n");
+        java.util.List<String> list = new java.util.ArrayList<String>();
+        for (String l : lines) {
+            String v = l.trim();
+            if (v.length() == 0) continue;
+            v = v.replaceAll("^[-*\\d]+[.、)]\\s*", "").trim();
+            v = v.replaceAll("^\"|\"$", "").trim();
+            if (v.length() > 0) list.add(v);
+        }
+        return list.isEmpty() ? null : list.toArray(new String[0]);
     }
 
     private static String shorten(String s) {

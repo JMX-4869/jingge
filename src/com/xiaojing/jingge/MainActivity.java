@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.34";
+    private static final String VER = "0.35";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -705,6 +705,11 @@ public class MainActivity extends Activity implements MusicService.Listener {
                 editLyric(s);
             }
         }, d));
+        box.addView(menuRow("AI 生成翻译歌词", Ui.TEXT, false, new Runnable() {
+            public void run() {
+                aiTransMenu(s);
+            }
+        }, d));
 
         box.addView(hair());
 
@@ -725,6 +730,165 @@ public class MainActivity extends Activity implements MusicService.Listener {
         d.setContentView(box);
         dialogWindow(d);
         d.show();
+    }
+
+    // ───────────────── 长按：AI 生成翻译歌词 ─────────────────
+
+    private void aiTransMenu(final Song s) {
+        final Dialog d = new Dialog(this);
+        LinearLayout box = dialogBox();
+        box.setPadding(0, dp(16), 0, dp(8));
+
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.VERTICAL);
+        head.setPadding(dp(20), 0, dp(20), dp(10));
+        head.addView(text("AI 生成翻译歌词", 16, Ui.TEXT, true));
+        TextView sub = text("每句原文下面加一行翻译，翻成哪种语言你自己选", 12, Ui.MUTED, false);
+        sub.setPadding(0, dp(6), 0, 0);
+        head.addView(sub);
+        box.addView(head);
+        box.addView(hair());
+
+        String[] langs = {"中文", "繁體中文", "English", "日本語", "한국어"};
+        for (final String lang : langs) {
+            box.addView(menuRow(lang, Ui.TEXT, false, new Runnable() {
+                public void run() {
+                    runAiTrans(s, lang);
+                }
+            }, d));
+        }
+        box.addView(hair());
+        box.addView(menuRow("自定义语言…", Ui.MUTED, false, new Runnable() {
+            public void run() {
+                askLang(s);
+            }
+        }, d));
+
+        d.setContentView(box);
+        dialogWindow(d);
+        d.show();
+    }
+
+    private void askLang(final Song s) {
+        final Dialog d = new Dialog(this);
+        LinearLayout box = dialogBox();
+        box.addView(text("翻成什么语言", 15, Ui.TEXT, true));
+        final EditText e = field("", "比如 ไทย / Português / 粤语");
+        box.addView(e);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.END);
+        box.addView(row);
+        TextView cancel = text("取消", 13, Ui.MUTED, false);
+        cancel.setPadding(dp(12), dp(8), dp(16), dp(8));
+        cancel.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                d.dismiss();
+            }
+        });
+        row.addView(cancel);
+        TextView ok = text("开始", 13, Ui.ACCENT, true);
+        ok.setPadding(dp(12), dp(8), dp(12), dp(8));
+        ok.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                String lang = e.getText().toString().trim();
+                d.dismiss();
+                if (lang.length() == 0) {
+                    Toast.makeText(MainActivity.this, "先写个语言名", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                runAiTrans(s, lang);
+            }
+        });
+        row.addView(ok);
+
+        d.setContentView(box);
+        dialogWindow(d);
+        d.show();
+    }
+
+    private static String stampMs(int ms) {
+        if (ms < 0) ms = 0;
+        return String.format("[%02d:%02d.%03d]", ms / 60000, (ms / 1000) % 60, ms % 1000);
+    }
+
+    private void runAiTrans(final Song s, final String lang) {
+        if (!Ai.configured(this)) {
+            Toast.makeText(this, "先填 API Key：设置 → AI", Toast.LENGTH_LONG).show();
+            return;
+        }
+        String raw = LyricStore.read(this, s.id);
+        if (raw == null) raw = LyricStore.readAuto(this, s.id);
+        if (raw == null) {
+            Toast.makeText(this, "这首歌还没有歌词，先点「补全」或者「编辑歌词」",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+        final Lyric ly = Lyric.parse(raw);
+        if (ly == null || !ly.synced || ly.lines.size() < 2) {
+            Toast.makeText(this, "歌词没有时间轴，先补全带时间轴的歌词",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        final int n = ly.lines.size();
+        final int[] times = new int[n];
+        final String[] src = new String[n];
+        for (int i = 0; i < n; i++) {
+            times[i] = ly.lines.get(i).timeMs;
+            src[i] = ly.lines.get(i).text;
+        }
+
+        final Dialog pd = new Dialog(this);
+        LinearLayout box = dialogBox();
+        box.addView(text("AI 正在翻译…", 15, Ui.TEXT, true));
+        TextView tip = text("翻成 " + lang + " · 共 " + n + " 句，可能要十几秒", 12, Ui.MUTED, false);
+        tip.setPadding(0, dp(8), 0, 2);
+        box.addView(tip);
+        pd.setContentView(box);
+        dialogWindow(pd);
+        pd.setCancelable(false);
+        pd.show();
+
+        Ai.translate(this, lang, src, new Ai.LinesCb() {
+            @Override
+            public void onLines(String[] lines, String error) {
+                pd.dismiss();
+                if (error != null || lines == null) {
+                    Toast.makeText(MainActivity.this, "没翻成：" + error, Toast.LENGTH_LONG).show();
+                    return;
+                }
+                StringBuilder sb = new StringBuilder();
+                int kept = 0;
+                for (int i = 0; i < times.length; i++) {
+                    String tr = i < lines.length ? lines[i] : null;
+                    sb.append(stampMs(times[i])).append(src[i]).append('\n');
+                    if (tr != null) {
+                        tr = tr.trim();
+                        if (tr.length() > 0 && !tr.equals(src[i].trim())) {
+                            sb.append(stampMs(times[i])).append(tr).append('\n');
+                            kept++;
+                        }
+                    }
+                }
+                if (kept == 0) {
+                    Toast.makeText(MainActivity.this, "AI 没给出可用的翻译", Toast.LENGTH_LONG).show();
+                    return;
+                }
+                if (!LyricStore.save(MainActivity.this, s.id, sb.toString())) {
+                    Toast.makeText(MainActivity.this, "写不进文件", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                LyricFinder.invalidate(s.id);
+                lyricSongId = -1;
+                lyricStamp = -1;
+                Toast.makeText(MainActivity.this, "已生成 " + lang + " 翻译 · " + kept + " 句",
+                        Toast.LENGTH_SHORT).show();
+                if (svc != null && svc.currentSong() != null && svc.currentSong().id == s.id) {
+                    maybeLoadLyric(svc.currentSong());
+                }
+            }
+        });
     }
 
     private void confirmDelete(final Song s) {
