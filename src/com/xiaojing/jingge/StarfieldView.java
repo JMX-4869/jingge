@@ -119,7 +119,7 @@ public class StarfieldView extends View {
             sy[i] = rnd.nextFloat();
             sv[i] = 0.10f + rnd.nextFloat() * 0.26f;
             sl[i] = 0.02f + rnd.nextFloat() * 0.05f;
-            sa[i] = 0.10f + rnd.nextFloat() * 0.22f;
+            sa[i] = 0.06f + rnd.nextFloat() * 0.14f;
         }
         LIVE.add(new WeakReference<StarfieldView>(this));
     }
@@ -178,7 +178,7 @@ public class StarfieldView extends View {
                 Ui.blend(Ui.ACCENT, Ui.BG, 0.95f), Ui.BG, Shader.TileMode.CLAMP);
         scanH = h * 0.22f;
         scanGrad = new LinearGradient(0, 0, 0, scanH, new int[]{
-                alpha(Ui.ACCENT, 0), alpha(Ui.ACCENT, 22), alpha(CYAN, 9), alpha(Ui.ACCENT, 0)},
+                alpha(Ui.ACCENT, 0), alpha(Ui.ACCENT, 11), alpha(CYAN, 5), alpha(Ui.ACCENT, 0)},
                 null, Shader.TileMode.CLAMP);
     }
 
@@ -334,7 +334,7 @@ public class StarfieldView extends View {
         for (int r = 0; r < radii.length; r++) {
             float rad = radii[r];
             if (rad <= 0) continue;
-            int baseA = (int) ((r == 1 ? 26 : 18) * appear);
+            int baseA = (int) ((r == 1 ? 16 : 11) * appear);
             hud.setStrokeWidth(Math.max(1f, density * 0.6f));
             hud.setColor(alpha(r == 2 ? VIOLET : Ui.ACCENT, baseA));
             cv.drawCircle(cx, cy, rad, hud);
@@ -377,7 +377,7 @@ public class StarfieldView extends View {
             beamPath.lineTo(topX + spread, topY);
             beamPath.lineTo(topX - spread, topY);
             beamPath.close();
-            int a = (int) ((i % 2 == 0 ? 7 : 5) * appear);
+            int a = (int) ((i % 2 == 0 ? 4 : 3) * appear);
             hud.setColor(alpha(i % 2 == 0 ? CYAN : VIOLET, a));
             cv.drawPath(beamPath, hud);
         }
@@ -394,7 +394,7 @@ public class StarfieldView extends View {
         // 竖线：向消失点收
         for (int i = -7; i <= 7; i++) {
             float bx = vpx + i * w * 0.19f;
-            int a = (int) ((i == 0 ? 46 : 30 - Math.abs(i) * 2.2f) * appear);
+            int a = (int) ((i == 0 ? 34 : 20 - Math.abs(i) * 1.6f) * appear);
             hud.setColor(alpha(Ui.ACCENT, a));
             cv.drawLine(vpx, horizon, bx, h * 1.04f, hud);
         }
@@ -404,14 +404,14 @@ public class StarfieldView extends View {
         for (int i = 0; i < 9; i++) {
             float k = (i + phase) / 9f;
             float y = horizon + (h * 0.25f) * k * k;
-            int a = (int) ((8 + 52 * k) * appear);
+            int a = (int) ((5 + 34 * k) * appear);
             hud.setColor(alpha(Ui.ACCENT, a));
             cv.drawLine(0, y, w, y, hud);
         }
 
         // 地平线本身
         hud.setStrokeWidth(Math.max(1f, density * 1.1f));
-        hud.setColor(alpha(CYAN, (int) (58 * appear)));
+        hud.setColor(alpha(CYAN, (int) (44 * appear)));
         cv.drawLine(0, horizon, w, horizon, hud);
     }
 
@@ -424,7 +424,7 @@ public class StarfieldView extends View {
                 sy[i] = 1.05f;
                 sx[i] = rnd.nextFloat();
                 sv[i] = 0.10f + rnd.nextFloat() * 0.26f;
-                sa[i] = 0.10f + rnd.nextFloat() * 0.22f;
+                sa[i] = 0.06f + rnd.nextFloat() * 0.14f;
             }
             float px = sx[i] * w;
             float py = sy[i] * h;

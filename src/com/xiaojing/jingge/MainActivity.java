@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.46";
+    private static final String VER = "0.47";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -2467,6 +2467,15 @@ public class MainActivity extends Activity implements MusicService.Listener {
         }
     }
 
+    /** 内容层垫底：顶部几乎实心、往下渐透，保证字落在干净底上，光效只在边缘透出来 */
+    private android.graphics.drawable.Drawable contentScrim(int topAlpha, int botAlpha) {
+        int t = (topAlpha << 24) | (Ui.BG & 0x00FFFFFF);
+        int b = (botAlpha << 24) | (Ui.BG & 0x00FFFFFF);
+        return new android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{t, b});
+    }
+
     private View buildUi() {
         final FrameLayout root = new FrameLayout(this);
         android.graphics.drawable.Drawable screen = Ui.screenSurface(this);
@@ -2481,6 +2490,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
         }
 
         final RelativeLayout page = new RelativeLayout(this);
+        if (Ui.STYLE == Ui.STYLE_GLOW) page.setBackground(contentScrim(0xF4, 0xE0));
         page.setMinimumHeight(getResources().getDisplayMetrics().heightPixels);
         root.addView(page, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
@@ -2832,6 +2842,10 @@ public class MainActivity extends Activity implements MusicService.Listener {
         if (Ui.STYLE == Ui.STYLE_GLOW) {
             FrameLayout wrap = new FrameLayout(this);
             wrap.addView(new StarfieldView(this), new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            View ps = new View(this);
+            ps.setBackground(contentScrim(0xF6, 0xE8));
+            wrap.addView(ps, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
             wrap.addView(playerContent, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
