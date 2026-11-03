@@ -33,9 +33,8 @@ final class GlowDrawable extends Drawable {
 
     private LinearGradient shine;
     private int shineW;
-    /** 这个 drawable 是第几毫秒建的：扫光和呼吸从这里开始计时，演完就不动 */
+    /** 呼吸/扫光从这里开始计时 */
     private final long born = SystemClock.uptimeMillis();
-    private static final long SHOW_MS = 8600L;
 
     GlowDrawable(int fill, int accent, float radius, float grid, boolean border) {
         this.fill = fill;
@@ -49,10 +48,10 @@ final class GlowDrawable extends Drawable {
     public void draw(Canvas c) {
         long now = SystemClock.uptimeMillis();
         long age = now - born;
-        boolean playing = age < SHOW_MS;
-        float breathe = playing
-                ? 0.5f + 0.5f * (float) Math.sin(age / 1400.0)
-                : 0.5f;
+        // 两个不同周期的正弦叠着，呼吸没有可辨的循环点
+        float breathe = 0.5f
+                + 0.28f * (float) Math.sin(age / 1400.0)
+                + 0.22f * (float) Math.sin(age / 3100.0 + 1.3);
         Rect b = getBounds();
         rf.set(b);
         path.reset();
@@ -96,8 +95,8 @@ final class GlowDrawable extends Drawable {
             p.setColor(alpha(accent, (int) (46 + 30 * breathe)));
             c.drawRoundRect(rf, radius, radius, p);
 
-            // 沿边扫光：扫两圈就停
-            if (playing && b.width() > 8) {
+            // 沿边扫光：一直走，4.2 秒一圈
+            if (b.width() > 8) {
                 if (shine == null || shineW != b.width()) {
                     shineW = b.width();
                     float w = shineW;

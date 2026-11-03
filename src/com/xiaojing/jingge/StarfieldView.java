@@ -14,14 +14,14 @@ import java.util.List;
 import java.util.Random;
 
 /**
- * 群星风格的底：四层视差星点 + 会漂的星云 + 流星。
+ * 群星风格的底：四层视差星点 + 会漂的星云 + 流星，一直在动。
  *
- * ⚠️ 它是一段"演出"，不是循环动画：
- *   0～1.2s  切进来，星点从暗到亮
- *   0～6s    流星一两颗，星云慢慢浮上来
- *   6～9.5s  越转越慢，最后停住
- *   9.5s 之后 一帧都不再画（省电），画面定格
- * 再次"播一次"的时机：页面重新可见、回到前台、或手动 replay()。
+ * 让它别看出"循环"的办法不是停，是**周期互不整除**：
+ *   · 星云游动 11.3s / 16.7s 两个周期叠着走
+ *   · 星点闪烁每颗自己的相位和频率
+ *   · 流星间隔 3.5~9 秒随机，方向和速度也随机
+ * 所以画面永远不重复，也不会像 GIF 那样"啪"一下回到起点。
+ * 只在可见时跑，30fps 封顶；进页面先淡入 1.2 秒。
  */
 public class StarfieldView extends View {
     private static final int FAR = 210;
@@ -29,11 +29,6 @@ public class StarfieldView extends View {
     private static final int NEAR = 30;
     private static final int BRIGHT = 6;
     private static final int N = FAR + MID + NEAR + BRIGHT;
-
-    /** 整段演出的长度（秒） */
-    private static final float SHOW = 9.5f;
-    /** 流星最晚出现到第几秒 */
-    private static final float METEOR_UNTIL = 6.0f;
 
     private static final List<WeakReference<StarfieldView>> LIVE =
             new ArrayList<WeakReference<StarfieldView>>();
@@ -57,7 +52,6 @@ public class StarfieldView extends View {
     private long lastFrame;
     private long showStart;
     private boolean running;
-    private boolean finished;
     private float density = 1f;
     private final Random rnd = new Random(0x51AE7);
 
@@ -108,7 +102,6 @@ public class StarfieldView extends View {
         showStart = 0;
         last = 0;
         lastFrame = 0;
-        finished = false;
         running = true;
         nextMeteor = 0;
         for (int i = 0; i < 2; i++) mlife[i] = -1f;
@@ -170,44 +163,43 @@ public class StarfieldView extends View {
         float dt = last == 0 ? 0f : Math.min(0.05f, (now - last) / 1000f);
         last = now;
 
-        // 演出进度 0→1；之后画面定格
-        float prog = Math.min(1f, t / SHOW);
-        // 入场淡入
+        // 只有入场那 1.2 秒做淡入，之后一直动
         float appear = Math.min(1f, t / 1.2f);
         appear = appear * appear * (3 - 2 * appear);
-        // 越到后面越慢，最后停住
-        float slow = (float) Math.pow(1f - prog, 1.35f);
+
+        // 三个互不整除的周期，叠起来看不出循环
+        float w1 = (float) Math.sin(2 * Math.PI * t / 11.3);
+        float w2 = (float) Math.sin(2 * Math.PI * t / 16.7 + 1.7);
+        float w3 = (float) Math.sin(2 * Math.PI * t / 23.9 + 3.1);
 
         cv.drawColor(Ui.BG);
 
         // 星云：跟着画布平移慢慢游，入场时亮度从 0 拉到满
         if (g1 != null) {
-            float nebA = appear * (1f - 0.15f * prog);
+            float nebA = appear;
             int save = cv.save();
-            cv.translate((float) Math.sin(t * 0.045f) * w * 0.035f,
-                    (float) Math.cos(t * 0.037f) * h * 0.025f);
+            cv.translate(w1 * w * 0.035f, w2 * h * 0.025f);
             neb.setShader(g1);
-            neb.setAlpha((int) ((206 + 26 * Math.sin(t * 0.33f)) * nebA));
+            neb.setAlpha((int) ((206 + 20 * w2 + 8 * w3) * nebA));
             cv.drawRect(-w * 0.1f, -h * 0.1f, w * 1.1f, h * 1.1f, neb);
             cv.restoreToCount(save);
 
             save = cv.save();
-            cv.translate((float) Math.cos(t * 0.032f + 1f) * w * 0.03f,
-                    (float) Math.sin(t * 0.041f + 2f) * h * 0.03f);
+            cv.translate(w2 * w * 0.03f, w3 * h * 0.03f);
             neb.setShader(g2);
-            neb.setAlpha((int) ((200 + 28 * Math.sin(t * 0.25f + 2f)) * nebA));
+            neb.setAlpha((int) ((200 + 18 * w1 + 10 * w2) * nebA));
             cv.drawRect(-w * 0.1f, -h * 0.1f, w * 1.1f, h * 1.1f, neb);
             cv.restoreToCount(save);
 
             neb.setShader(g3);
-            neb.setAlpha((int) ((110 + 44 * Math.sin(t * 0.19f + 4f)) * nebA));
+            neb.setAlpha((int) ((110 + 26 * w3 + 12 * w1) * nebA));
             cv.drawRect(0, 0, w, h, neb);
         }
 
         p.setStyle(Paint.Style.FILL);
         for (int i = 0; i < N; i++) {
-            y[i] -= sp[i] * dt * slow;
-            x[i] += dx[i] * dt * slow;
+            y[i] -= sp[i] * dt;
+            x[i] += dx[i] * dt;
             if (y[i] < -0.03f) {
                 y[i] = 1.03f;
                 x[i] = rnd.nextFloat();
@@ -215,9 +207,8 @@ public class StarfieldView extends View {
             if (x[i] < -0.02f) x[i] = 1.02f;
             if (x[i] > 1.02f) x[i] = -0.02f;
 
-            // 闪烁随演出衰减：结束时星点是稳的，不再呼吸
             float flash = (float) Math.sin(ph[i] + t * tw[i]);
-            float twk = 0.55f + 0.45f * flash * (0.15f + 0.85f * (1f - prog));
+            float twk = 0.55f + 0.45f * flash;
             int a = (int) (al[i] * twk * appear * 255);
             if (a <= 1) continue;
             float px = x[i] * w;
@@ -243,8 +234,8 @@ public class StarfieldView extends View {
             }
         }
 
-        // 流星：只在演出前半段出现，之后不再生
-        if (t < METEOR_UNTIL && (nextMeteor == 0 || now > nextMeteor)) {
+        // 流星：一直都会有，间隔随机
+        if (nextMeteor == 0 || now > nextMeteor) {
             spawnMeteor();
             long gap = 900 + (long) (rnd.nextFloat() * 2600);
             nextMeteor = now + gap;
@@ -282,12 +273,6 @@ public class StarfieldView extends View {
             cv.drawCircle(mx[i], my[i], Math.max(1.2f, 1.6f * density), p);
         }
 
-        boolean done = prog >= 1f && !meteorAlive;
-        if (done) {
-            // 定格：不再请求下一帧
-            if (!finished) finished = true;
-            return;
-        }
         if (running && now - lastFrame >= 28) {
             lastFrame = now;
             postInvalidateOnAnimation();

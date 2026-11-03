@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.42";
+    private static final String VER = "0.43";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -3220,9 +3220,8 @@ public class MainActivity extends Activity implements MusicService.Listener {
         if (Ui.STYLE != Ui.STYLE_GLOW) return;
         if (barPulse != null) return;
         barPulse = android.animation.ValueAnimator.ofFloat(1f, 0.35f, 1f);
-        barPulse.setDuration(2000);
-        // 只闪三下，不无限循环
-        barPulse.setRepeatCount(2);
+        barPulse.setDuration(2600);
+        barPulse.setRepeatCount(android.animation.ValueAnimator.INFINITE);
         barPulse.addUpdateListener(new android.animation.ValueAnimator.AnimatorUpdateListener() {
             @Override
             public void onAnimationUpdate(android.animation.ValueAnimator a) {
