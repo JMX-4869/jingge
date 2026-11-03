@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.40";
+    private static final String VER = "0.41";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -1794,17 +1794,6 @@ public class MainActivity extends Activity implements MusicService.Listener {
         srow.addView(styleChip(d, "极简", Ui.STYLE_MINIMAL, Ui.style(this)));
         srow.addView(styleChip(d, "群星", Ui.STYLE_GLOW, Ui.style(this)));
 
-        TextView fl = text("动效", 11, Ui.DIM, false);
-        fl.setPadding(0, dp(12), 0, dp(6));
-        box.addView(fl);
-
-        LinearLayout frow = new LinearLayout(this);
-        frow.setOrientation(LinearLayout.HORIZONTAL);
-        box.addView(frow);
-        frow.addView(fxChip(d, "华丽", 2));
-        frow.addView(fxChip(d, "克制", 1));
-        frow.addView(fxChip(d, "关", 0));
-
         TextView kl = text("播放页", 11, Ui.DIM, false);
         kl.setPadding(0, dp(14), 0, dp(6));
         box.addView(kl);
@@ -1924,26 +1913,6 @@ public class MainActivity extends Activity implements MusicService.Listener {
         d.setContentView(sv);
         dialogWindowTall(d);
         d.show();
-    }
-
-    private View fxChip(final Dialog d, final String name, final int level) {
-        final boolean on = Ui.FX == level;
-        TextView t = text(name, 13, on ? Ui.ACCENT : Ui.MUTED, on);
-        t.setPadding(dp(16), dp(9), dp(16), dp(9));
-        t.setBackground(Ui.roundStroke(0, on ? Ui.ACCENT : Ui.LINE, dp(10), dp(1)));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.setMargins(0, 0, dp(8), 0);
-        t.setLayoutParams(lp);
-        t.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Ui.setFx(MainActivity.this, level);
-                d.dismiss();
-                recreate();
-            }
-        });
-        return t;
     }
 
     private View keepChip(final Dialog d, final String name, final boolean on) {
@@ -2859,7 +2828,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
         drawer.addView(aboutItem);
 
         View playerContent = buildPlayer();
-        if (Ui.STYLE == Ui.STYLE_GLOW && Ui.FX > 0) {
+        if (Ui.STYLE == Ui.STYLE_GLOW) {
             FrameLayout wrap = new FrameLayout(this);
             wrap.addView(new StarfieldView(this), new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
