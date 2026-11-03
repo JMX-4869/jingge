@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.63";
+    private static final String VER = "0.64";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -147,7 +147,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
     private long lyricStamp = -1;
     private long pendingCoverId = -1;
     private LinearLayout nowBox;
-    private TextView nowTitle, nowLyric;
+    private TextView nowTitle, nowLyric, nowTrans;
     private Lyric currentLyric;
     private int nowLine = -2;
     private static final int REQ_COVER = 51;
@@ -544,7 +544,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
         lyricStamp = stamp;
         if (localChanged) LyricFinder.invalidate(cur.id);
         lyricView.setMessage("正在找歌词");
-        nowLyric.setText("正在找歌词");
+        setNowLine("正在找歌词");
         currentLyric = null;
         nowLine = -2;
         final long want = cur.id;
@@ -556,16 +556,16 @@ public class MainActivity extends Activity implements MusicService.Listener {
                 nowLine = -2;
                 if (l == null) {
                     lyricView.setMessage("没找到歌词");
-                    nowLyric.setText("没找到歌词");
+                    setNowLine("没找到歌词");
                 } else {
                     curLyric = l;
             lyricView.setLyric(l);
                     if (l.synced && !l.lines.isEmpty()) {
-                        nowLyric.setText(l.lines.get(0).text);
+                        setNowLine(l.lines.get(0));
                     } else if (!l.plain.isEmpty()) {
-                        nowLyric.setText(l.plain.get(0));
+                        setNowLine(l.plain.get(0));
                     } else {
-                        nowLyric.setText("");
+                        setNowLine((String) null);
                     }
                 }
             }
@@ -641,6 +641,30 @@ public class MainActivity extends Activity implements MusicService.Listener {
         }
     };
 
+    /** 顶部三行：歌名 / 原文 / 译文（没有译文就不占位） */
+    private void setNowLine(Lyric.Line l) {
+        if (l == null) {
+            setNowLine((String) null);
+            return;
+        }
+        String tx = l.text == null ? "" : l.text.trim();
+        nowLyric.setText(tx);
+        String tr = l.trans == null ? "" : l.trans.trim();
+        if (tr.length() == 0 || tr.equals(tx)) {
+            nowTrans.setText("");
+            nowTrans.setVisibility(View.GONE);
+        } else {
+            nowTrans.setText(tr);
+            nowTrans.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void setNowLine(String plain) {
+        nowLyric.setText(plain == null ? "" : plain);
+        nowTrans.setText("");
+        nowTrans.setVisibility(View.GONE);
+    }
+
     /** 列表页顶部那一行歌词，跟着播放走。 */
     private void updateNowLyric(int pos) {
         if (currentLyric == null || !currentLyric.synced) return;
@@ -648,7 +672,9 @@ public class MainActivity extends Activity implements MusicService.Listener {
         if (idx == nowLine) return;
         nowLine = idx;
         if (idx >= 0 && idx < currentLyric.lines.size()) {
-            nowLyric.setText(currentLyric.lines.get(idx).text);
+            setNowLine(currentLyric.lines.get(idx));
+        } else {
+            setNowLine((Lyric.Line) null);
         }
     }
 
@@ -2746,16 +2772,23 @@ public class MainActivity extends Activity implements MusicService.Listener {
         top.addView(nowBox, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        nowTitle = text("", 13, Ui.TEXT, false);
+        nowTitle = text("", 11, Ui.MUTED, false);
         nowTitle.setSingleLine(true);
         nowTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
         nowBox.addView(nowTitle);
 
-        nowLyric = text("", 12, Ui.MUTED, false);
+        nowLyric = text("", 14, Ui.TEXT, false);
         nowLyric.setSingleLine(true);
         nowLyric.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        nowLyric.setPadding(0, dp(4), 0, 0);
+        nowLyric.setPadding(0, dp(3), 0, 0);
         nowBox.addView(nowLyric);
+
+        nowTrans = text("", 11, Ui.MUTED, false);
+        nowTrans.setSingleLine(true);
+        nowTrans.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        nowTrans.setPadding(0, dp(2), 0, 0);
+        nowTrans.setVisibility(View.GONE);
+        nowBox.addView(nowTrans);
 
         View nowHair = new View(this);
         nowHair.setBackgroundColor(Ui.LINE_SOFT);
