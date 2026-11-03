@@ -19,14 +19,11 @@ import javax.crypto.spec.SecretKeySpec;
 
 /**
  * 听音识曲：录一段 PCM 丢给识别服务。
- * 两个服务商，都在设置里填，别的不需要：
- *   ACRCloud —— host / access key / secret（每家免费额度看官网）
- *   AudD     —— api token
- * 两家都是"服务端听指纹"，本地不算指纹，所以必须联网 + 必须自己的 key。
+ * 服务商：ACRCloud —— host / access key / secret（额度看官网）。
+ * "服务端听指纹"，本地不算指纹，所以必须联网 + 必须自己的 key。
  */
 final class Recognize {
     static final String P_ACR = "acr";
-    static final String P_AUDD = "audd";
 
     static final class Track {
         String title;
@@ -57,14 +54,6 @@ final class Recognize {
 
     // ───────────────── 配置 ─────────────────
 
-    static String provider(Context c) {
-        return Ai.prefs(c).getString("rec_provider", P_ACR);
-    }
-
-    static void setProvider(Context c, String p) {
-        Ai.prefs(c).edit().putString("rec_provider", p).apply();
-    }
-
     static String acrHost(Context c) {
         return Ai.prefs(c).getString("acr_host", "");
     }
@@ -77,10 +66,6 @@ final class Recognize {
         return Ai.prefs(c).getString("acr_secret", "");
     }
 
-    static String auddToken(Context c) {
-        return Ai.prefs(c).getString("audd_token", "");
-    }
-
     static void saveAcr(Context c, String host, String key, String secret) {
         Ai.prefs(c).edit()
                 .putString("acr_host", host == null ? "" : host.trim())
@@ -89,23 +74,15 @@ final class Recognize {
                 .apply();
     }
 
-    static void saveAudd(Context c, String token) {
-        Ai.prefs(c).edit().putString("audd_token", token == null ? "" : token.trim()).apply();
-    }
-
     static boolean configured(Context c) {
-        if (P_AUDD.equals(provider(c))) return auddToken(c).length() > 8;
         return acrHost(c).length() > 3 && acrKey(c).length() > 3 && acrSecret(c).length() > 3;
     }
 
     // ───────────────── 入口 ─────────────────
 
     static void identify(final Context ctx, final byte[] pcm, final int sampleRate, final Cb cb) {
-        final String p = provider(ctx);
         if (!configured(ctx)) {
-            cb.onTrack(null, P_AUDD.equals(p)
-                    ? "还没填 AudD token（设置 → 听音识曲）"
-                    : "还没填 ACRCloud 的 host / key / secret（设置 → 听音识曲）");
+            cb.onTrack(null, "还没填 ACRCloud 的 host / key / secret（设置 → 听音识曲）");
             return;
         }
         new Thread(new Runnable() {
@@ -114,11 +91,7 @@ final class Recognize {
                 Track t = null;
                 String err = null;
                 try {
-                    if (P_AUDD.equals(p)) {
-                        t = audd(ctx, wav(pcm, sampleRate));
-                    } else {
-                        t = acr(ctx, pcm, sampleRate);
-                    }
+                    t = acr(ctx, pcm, sampleRate);
                     if (t == null && err == null) err = "没听出来（可能环境太吵，或者这段太短）";
                 } catch (ApiErr e) {
                     err = describe(e.code, e.getMessage());
@@ -250,48 +223,6 @@ final class Recognize {
                 mac.doFinal(data.getBytes("UTF-8")), android.util.Base64.NO_WRAP);
     }
 
-    // ───────────────── AudD ─────────────────
-
-    private static Track audd(Context ctx, byte[] wav) throws Exception {
-        String boundary = "----jingge" + UUID.randomUUID().toString().replace("-", "");
-        ByteArrayOutputStream body = new ByteArrayOutputStream();
-        field(body, boundary, "api_token", auddToken(ctx));
-        field(body, boundary, "return", "spotify");
-        body.write(("--" + boundary + "\r\n").getBytes("UTF-8"));
-        body.write(("Content-Disposition: form-data; name=\"file\"; filename=\"s.wav\"\r\n")
-                .getBytes("UTF-8"));
-        body.write("Content-Type: audio/wav\r\n\r\n".getBytes("UTF-8"));
-        body.write(wav);
-        body.write("\r\n".getBytes("UTF-8"));
-        body.write(("--" + boundary + "--\r\n").getBytes("UTF-8"));
-
-        String resp = post("https://api.audd.io/",
-                "multipart/form-data; boundary=" + boundary, body.toByteArray());
-        JSONObject o = new JSONObject(resp);
-        if (!"success".equals(o.optString("status"))) {
-            throw new IllegalStateException(o.optString("error", "返回异常"));
-        }
-        JSONObject r = o.optJSONObject("result");
-        if (r == null) return null;
-        Track t = new Track();
-        t.via = "AudD";
-        t.title = r.optString("title", null);
-        t.artist = r.optString("artist", null);
-        t.album = r.optString("album", null);
-        JSONObject sp = r.optJSONObject("spotify");
-        if (sp != null) {
-            JSONObject alb = sp.optJSONObject("album");
-            if (alb != null) {
-                JSONArray imgs = alb.optJSONArray("images");
-                if (imgs != null && imgs.length() > 0) {
-                    t.cover = imgs.optJSONObject(0) == null ? null
-                            : imgs.optJSONObject(0).optString("url", null);
-                }
-            }
-        }
-        return t;
-    }
-
     // ───────────────── 工具 ─────────────────
 
     static String describe(int code, String msg) {
@@ -305,13 +236,13 @@ final class Recognize {
             case 2000:
                 return "本机时间偏差太大，签名会失效";
             case 3001:
-                return "这段音频解不开";
+                return "这段音频算不出指纹（太安静或太短，靠近点再录）";
             case 3003:
                 return "没听出来（服务端说没有匹配的歌）";
             case 3013:
                 return "这段太短了，录够 5 秒再试";
             default:
-                return (msg == null || msg.length() == 0) ? ("返回码 " + code) : msg;
+                return "识别服务报错（返回码 " + code + "）";
         }
     }
 
@@ -331,7 +262,8 @@ final class Recognize {
                         err = null;
                     }
                 } catch (ApiErr e) {
-                    err = e.code == 3003
+                    // 3001 算不出指纹、3003 没匹配 —— 都说明签名和 key 已经过了（错 key 会先报 100x）
+                    err = (e.code == 3001 || e.code == 3003)
                             ? null
                             : describe(e.code, e.getMessage());
                 } catch (Throwable e) {
@@ -342,7 +274,7 @@ final class Recognize {
                     @Override
                     public void run() {
                         cb.onTrack(fe == null ? new Track() : null,
-                                fe == null ? "配对成功，签名过了（服务端只是没听出歌）" : fe);
+                                fe == null ? "配对成功：签名和 key 都过了（没听出歌是正常的，测的是静音）" : fe);
                     }
                 });
             }
@@ -388,31 +320,6 @@ final class Recognize {
         if (s == null) return "";
         s = s.trim();
         return s.length() > 160 ? s.substring(0, 160) : s;
-    }
-
-    /** 给 AudD 用：PCM16 mono → wav */
-    static byte[] wav(byte[] pcm, int sampleRate) {
-        int ch = 1, bits = 16;
-        int dataLen = pcm.length;
-        ByteArrayOutputStream out = new ByteArrayOutputStream(dataLen + 44);
-        try {
-            out.write("RIFF".getBytes("UTF-8"));
-            writeInt(out, 36 + dataLen);
-            out.write("WAVE".getBytes("UTF-8"));
-            out.write("fmt ".getBytes("UTF-8"));
-            writeInt(out, 16);
-            writeShort(out, 1);
-            writeShort(out, ch);
-            writeInt(out, sampleRate);
-            writeInt(out, sampleRate * ch * bits / 8);
-            writeShort(out, ch * bits / 8);
-            writeShort(out, bits);
-            out.write("data".getBytes("UTF-8"));
-            writeInt(out, dataLen);
-            out.write(pcm);
-        } catch (Throwable ignored) {
-        }
-        return out.toByteArray();
     }
 
     private static void writeInt(ByteArrayOutputStream o, int v) {

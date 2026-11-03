@@ -227,9 +227,7 @@ public class RecognizeActivity extends Activity {
         if (!Recognize.configured(this)) {
             ring.setMode(RingView.IDLE);
             status.setText("还没配识别服务");
-            hint.setText(Recognize.P_AUDD.equals(Recognize.provider(this))
-                    ? "设置 → 听音识曲 → 填 AudD token"
-                    : "设置 → 听音识曲 → 填 ACRCloud 的 host / key / secret");
+            hint.setText("设置 → 听音识曲 → 填 ACRCloud 的 host / key / secret");
             again.setVisibility(View.GONE);
             close.setText("去设置");
             close.setOnClickListener(new View.OnClickListener() {

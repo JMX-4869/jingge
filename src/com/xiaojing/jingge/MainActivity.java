@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.52";
+    private static final String VER = "0.53";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -1483,17 +1483,10 @@ public class MainActivity extends Activity implements MusicService.Listener {
         LinearLayout box = dialogBox();
         box.addView(text("听音识曲", 15, Ui.TEXT, true));
 
-        TextView tip = text("录 8 秒交给服务商认指纹。两家都要自己去注册拿 key，"
-                + "额度按他们的规则；识别片段会上传到那一家。", 11, Ui.MUTED, false);
+        TextView tip = text("录 8 秒交给 ACRCloud 认指纹。key 要自己去控制台拿，"
+                + "额度按他们的规则；识别片段会上传到 ACRCloud。", 11, Ui.MUTED, false);
         tip.setPadding(0, dp(8), 0, dp(10));
         box.addView(tip);
-
-        final String cur = Recognize.provider(this);
-        LinearLayout prow = new LinearLayout(this);
-        prow.setOrientation(LinearLayout.HORIZONTAL);
-        box.addView(prow);
-        prow.addView(recChip(d, "ACRCloud", Recognize.P_ACR, cur));
-        prow.addView(recChip(d, "AudD", Recognize.P_AUDD, cur));
 
         LinearLayout openRow = new LinearLayout(this);
         openRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -1510,16 +1503,6 @@ public class MainActivity extends Activity implements MusicService.Listener {
         });
         openRow.addView(openAcr);
 
-        TextView openAudd = text("去 AudD 注册 ↗", 12, Ui.ACCENT, false);
-        openAudd.setPadding(0, dp(8), 0, dp(8));
-        openAudd.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                openUrl("https://dashboard.audd.io/");
-            }
-        });
-        openRow.addView(openAudd);
-
         TextView hl = text("ACRCloud", 11, Ui.DIM, false);
         hl.setPadding(0, dp(14), 0, dp(6));
         box.addView(hl);
@@ -1533,12 +1516,6 @@ public class MainActivity extends Activity implements MusicService.Listener {
         box.addView(host);
         box.addView(key);
         box.addView(secret);
-
-        TextView tl2 = text("AudD", 11, Ui.DIM, false);
-        tl2.setPadding(0, dp(12), 0, dp(6));
-        box.addView(tl2);
-        final EditText token = field(Recognize.auddToken(this), "AudD api_token");
-        box.addView(token);
 
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.END);
@@ -1582,7 +1559,6 @@ public class MainActivity extends Activity implements MusicService.Listener {
                 Recognize.saveAcr(MainActivity.this,
                         host.getText().toString(), key.getText().toString(),
                         secret.getText().toString());
-                Recognize.saveAudd(MainActivity.this, token.getText().toString());
                 d.dismiss();
                 Toast.makeText(MainActivity.this,
                         Recognize.configured(MainActivity.this) ? "存好了" : "还没填全，识曲会提示",
@@ -1610,26 +1586,6 @@ public class MainActivity extends Activity implements MusicService.Listener {
                 setRecEntry(id);
                 d.dismiss();
                 showSettings();
-            }
-        });
-        return t;
-    }
-
-    private View recChip(final Dialog d, final String name, final String id, String cur) {
-        final boolean on = id.equals(cur);
-        TextView t = text(name, 13, on ? Ui.ACCENT : Ui.MUTED, on);
-        t.setPadding(dp(16), dp(9), dp(16), dp(9));
-        t.setBackground(Ui.roundStroke(0, on ? Ui.ACCENT : Ui.LINE, dp(10), dp(1)));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.setMargins(0, 0, dp(8), 0);
-        t.setLayoutParams(lp);
-        t.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Recognize.setProvider(MainActivity.this, id);
-                d.dismiss();
-                showRecSettings();
             }
         });
         return t;
@@ -1989,7 +1945,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
         erow.addView(entryChip(d, "通知栏", "notif", entry));
         erow.addView(entryChip(d, "都开", "both", entry));
 
-        TextView recRow = text("识别服务 · ACRCloud / AudD", 12, Ui.ACCENT, false);
+        TextView recRow = text("识别服务 · ACRCloud", 12, Ui.ACCENT, false);
         recRow.setPadding(dp(2), dp(6), dp(2), dp(10));
         recRow.setOnClickListener(new View.OnClickListener() {
             @Override
