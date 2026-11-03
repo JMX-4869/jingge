@@ -34,6 +34,11 @@ public class BallService extends Service {
 
     private int size, targetSize, gap;
     private int screenW, screenH;
+    private final android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
+    private boolean hidden;          // 收进侧边了
+    private boolean justRevealed;    // 这一下触摸只是把它拉出来，不算点击
+    private Runnable hider;
+
     private float downRawX, downRawY;
     private int startX, startY;
     private boolean dragging, over;
@@ -70,8 +75,8 @@ public class BallService extends Service {
         super.onCreate();
         try {
             wm = (WindowManager) getSystemService(WINDOW_SERVICE);
-            size = Ui.dp(this, 56);
-            targetSize = Ui.dp(this, 82);
+            size = Ui.dp(this, 42);
+            targetSize = Ui.dp(this, 74);
             gap = Ui.dp(this, 26);
             metrics();
             addBall();
@@ -103,6 +108,13 @@ public class BallService extends Service {
         if (ballLp != null) {
             ballLp.x = clampX(ballLp.x);
             ballLp.y = clampY(ballLp.y);
+            try {
+                wm.updateViewLayout(ball, ballLp);
+            } catch (Throwable ignored) {
+            }
+        }
+        if (ballLp != null && ball != null && hidden) {
+            ballLp.x = onLeftSide() ? -(int) (size * 0.62f) : screenW - (int) (size * 0.38f);
             try {
                 wm.updateViewLayout(ball, ballLp);
             } catch (Throwable ignored) {
@@ -152,12 +164,12 @@ public class BallService extends Service {
         GradientDrawable bg = new GradientDrawable();
         bg.setShape(GradientDrawable.OVAL);
         bg.setColor(0xE60A0F12);
-        bg.setStroke(Ui.dp(this, 1.5f), 0xFF2FE0C8);
+        bg.setStroke(Ui.dp(this, 1.2f), 0xFF2FE0C8);
         wrap.setBackground(bg);
 
         TextView glyph = new TextView(this);
         glyph.setText("♪");
-        glyph.setTextSize(24);
+        glyph.setTextSize(17);
         glyph.setTextColor(0xFF2FE0C8);
         glyph.setTypeface(Typeface.DEFAULT_BOLD);
         glyph.setGravity(Gravity.CENTER);
@@ -181,6 +193,13 @@ public class BallService extends Service {
             public boolean onTouch(View v, MotionEvent e) {
                 switch (e.getActionMasked()) {
                     case MotionEvent.ACTION_DOWN:
+                        if (hidden) {
+                            justRevealed = true;
+                            reveal();
+                            return true;
+                        }
+                        justRevealed = false;
+                        if (hider != null) h.removeCallbacks(hider);
                         downRawX = e.getRawX();
                         downRawY = e.getRawY();
                         startX = ballLp.x;
@@ -219,8 +238,12 @@ public class BallService extends Service {
                                 return true;
                             }
                             savePos();
+                            hideToEdge();
+                        } else if (justRevealed) {
+                            justRevealed = false;
                         } else {
                             openRecognize();
+                            scheduleHide();
                         }
                         dragging = false;
                         over = false;
@@ -237,9 +260,63 @@ public class BallService extends Service {
         }
     }
 
+    private boolean onLeftSide() {
+        return ballLp.x + size / 2 < screenW / 2;
+    }
+
+    private int shownX() {
+        return onLeftSide() ? 0 : screenW - size;
+    }
+
+    /** 一帧一帧挪，别瞬移 */
+    private void slideTo(final int tx) {
+        if (ball == null || ballLp == null) return;
+        final int from = ballLp.x, steps = 7;
+        if (from == tx) return;
+        for (int i = 1; i <= steps; i++) {
+            final int k = i;
+            h.postDelayed(new Runnable() {
+                public void run() {
+                    if (ball == null || ballLp == null) return;
+                    ballLp.x = from + (tx - from) * k / steps;
+                    try {
+                        wm.updateViewLayout(ball, ballLp);
+                    } catch (Throwable ignored) {
+                    }
+                }
+            }, i * 16);
+        }
+    }
+
+    /** 收进最近的那条竖边，只露三分之一 */
+    private void hideToEdge() {
+        if (ballLp == null || ball == null || dragging) return;
+        hidden = true;
+        slideTo(onLeftSide() ? -(int) (size * 0.62f) : screenW - (int) (size * 0.38f));
+    }
+
+    private void reveal() {
+        if (ballLp == null) return;
+        hidden = false;
+        slideTo(shownX());
+        scheduleHide();
+    }
+
+    private void scheduleHide() {
+        if (hider == null) {
+            hider = new Runnable() {
+                public void run() {
+                    if (!dragging) hideToEdge();
+                }
+            };
+        }
+        h.removeCallbacks(hider);
+        h.postDelayed(hider, 3500);
+    }
+
     private void savePos() {
         Ai.prefs(this).edit()
-                .putFloat("ball_x", ballLp.x)
+                .putFloat("ball_x", hidden ? shownX() : ballLp.x)
                 .putFloat("ball_y", ballLp.y)
                 .apply();
     }
