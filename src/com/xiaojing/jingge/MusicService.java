@@ -664,6 +664,11 @@ public class MusicService extends Service implements
                 playing ? "暂停" : "播放", servicePi(ACT_TOGGLE, 2)).build();
         Notification.Action aNext = new Notification.Action.Builder(
                 R.drawable.ic_next, "下一首", servicePi(ACT_NEXT, 3)).build();
+        Intent rec = new Intent(this, RecognizeActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent recPi = PendingIntent.getActivity(this, 6, rec, piFlags());
+        Notification.Action aRec = new Notification.Action.Builder(
+                R.drawable.stat_music, "听音识曲", recPi).build();
 
         Notification.Builder b;
         if (Build.VERSION.SDK_INT >= 26) {
@@ -684,7 +689,8 @@ public class MusicService extends Service implements
                 .setColor(Ui.ACCENT)
                 .addAction(aPrev)
                 .addAction(aPlay)
-                .addAction(aNext);
+                .addAction(aNext)
+                .addAction(aRec);
         b.setStyle(new Notification.MediaStyle()
                 .setMediaSession(session.getSessionToken())
                 .setShowActionsInCompactView(0, 1, 2));
