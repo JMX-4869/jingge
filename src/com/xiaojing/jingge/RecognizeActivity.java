@@ -66,7 +66,9 @@ public class RecognizeActivity extends Activity {
         } catch (Throwable ignored) {
         }
         setContentView(build());
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        if (android.os.Build.VERSION.SDK_INT >= 23
+                && checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
             status.setText("要用麦克风");
             hint.setText("先给录音权限，只录这几秒，不上传整首");
             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_MIC);
