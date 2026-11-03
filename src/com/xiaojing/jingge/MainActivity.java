@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.50";
+    private static final String VER = "0.51";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -1525,7 +1525,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
         box.addView(hl);
 
         final EditText host = field(Recognize.acrHost(this),
-                "host 例如 identify-eu-west-1.acrcloud.com");
+                "Host，如 identify-cn-north-1.acrcloud.cn（粘整段网址也行）");
         final EditText key = field(Recognize.acrKey(this), "access key");
         final EditText secret = field(Recognize.acrSecret(this), "access secret");
         box.addView(host);

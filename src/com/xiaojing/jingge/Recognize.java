@@ -128,8 +128,7 @@ final class Recognize {
     // ───────────────── ACRCloud ─────────────────
 
     private static Track acr(Context ctx, byte[] pcm, int sampleRate) throws Exception {
-        String host = acrHost(ctx);
-        if (!host.contains(".")) host = host + ".acrcloud.com";
+        String host = normalizeHost(acrHost(ctx));
         String access = acrKey(ctx);
         String secret = acrSecret(ctx);
         String uri = "/v1/identify";
@@ -212,6 +211,24 @@ final class Recognize {
                 .getBytes("UTF-8"));
         out.write(value.getBytes("UTF-8"));
         out.write("\r\n".getBytes("UTF-8"));
+    }
+
+    /** 用户粘什么的都有：带 https 的、带 /v1/identify 的、只写一半的，统一成裸 host */
+    static String normalizeHost(String raw) {
+        String h = raw == null ? "" : raw.trim();
+        if (h.startsWith("https://")) h = h.substring(8);
+        else if (h.startsWith("http://")) h = h.substring(7);
+        while (h.endsWith("/")) h = h.substring(0, h.length() - 1);
+        int cut = h.indexOf("/v1/identify");
+        if (cut > 0) h = h.substring(0, cut);
+        if (h.indexOf('.') < 0) {
+            if (h.startsWith("identify-cn") || h.startsWith("api-cn") || h.endsWith("-cn-north-1")) {
+                h = h + ".acrcloud.cn";
+            } else {
+                h = h + ".acrcloud.com";
+            }
+        }
+        return h;
     }
 
     private static String hmacBase64(String key, String data) throws Exception {
