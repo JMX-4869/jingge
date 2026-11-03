@@ -636,7 +636,28 @@ public class MusicService extends Service implements
         return (int) Math.sqrt((double) sum / n);
     }
 
-    /** 点通知栏/悬浮球：后台录 8 秒去认，不弹任何界面 */
+    /** 录一段就认，同步等结果；没声音或没认出来都返回 null */
+    private Recognize.Track tryOnce(boolean inner, int ms) {
+        byte[] pcm = recordOne(inner, ms);
+        if (pcm == null || rmsOf(pcm) < 60) return null;
+        final java.util.concurrent.CountDownLatch latch =
+                new java.util.concurrent.CountDownLatch(1);
+        final Recognize.Track[] out = new Recognize.Track[1];
+        Recognize.identify(this, pcm, 44100, new Recognize.Cb() {
+            @Override
+            public void onTrack(Recognize.Track t, String error) {
+                out[0] = t;
+                latch.countDown();
+            }
+        });
+        try {
+            latch.await(25, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Throwable ignored) {
+        }
+        return out[0];
+    }
+
+    /** 点通知栏/悬浮球：后台录 一段去认，不弹任何界面 */
     private void startBgRec() {
         if (recBusy) {
             toastMain("还在听，等一下");
@@ -679,60 +700,28 @@ public class MusicService extends Service implements
         new Thread(new Runnable() {
             @Override
             public void run() {
-                final byte[][] capBuf = new byte[1][];
-                Thread capThread = null;
+                Recognize.Track t = null;
                 if (useCap) {
-                    capThread = new Thread(new Runnable() {
+                    main.post(new Runnable() {
                         public void run() {
-                            capBuf[0] = recordOne(true, 8000);
+                            recStatus = "正在听（内录）…";
+                            updateNotification();
+                            showRecCard();
                         }
-                    }, "cap-rec");
-                    capThread.start();
+                    });
+                    t = tryOnce(true, 6000);
                 }
-                byte[] micBuf = null;
-                if (useMic) micBuf = recordOne(false, 8000);
-                if (capThread != null) {
-                    try {
-                        capThread.join(9000);
-                    } catch (Throwable ignored) {
-                    }
-                }
-                final byte[] mic = micBuf;
-                byte[] clip = useCap && useMic ? mix(micBuf, capBuf[0])
-                        : useCap ? capBuf[0] : micBuf;
-
-                int rms = rmsOf(clip);
-                if (clip == null || clip.length == 0 || rms < 60) {
-                    // 混合失败时，还有一路有声音的话就单独再用那一路
-                    if (rmsOf(mic) >= 60) {
-                        clip = mic;
-                        rms = rmsOf(mic);
-                    } else if (rmsOf(capBuf[0]) >= 60) {
-                        clip = capBuf[0];
-                        rms = rmsOf(clip);
-                    } else {
-                        finishRec(null, "两路都是静音（音量 " + rms
-                                + "）—— 检查麦克风权限，或那个 App 不允许被录", wasPlaying);
-                        return;
-                    }
-                }
-                final byte[] use = clip;
-                Recognize.identify(MusicService.this, use, 44100, new Recognize.Cb() {
-                    @Override
-                    public void onTrack(Recognize.Track t, String error) {
-                        // 内外混过还是没认出来，再拿麦克风那一路单独试一次
-                        if (t == null && useCap && useMic && mic != null && rmsOf(mic) >= 60) {
-                            Recognize.identify(MusicService.this, mic, 44100, new Recognize.Cb() {
-                                @Override
-                                public void onTrack(Recognize.Track t2, String e2) {
-                                    finishRec(t2, e2, wasPlaying);
-                                }
-                            });
-                            return;
+                if (t == null && useMic) {
+                    main.post(new Runnable() {
+                        public void run() {
+                            recStatus = "正在听（外放）…";
+                            updateNotification();
+                            showRecCard();
                         }
-                        finishRec(t, error, wasPlaying);
-                    }
-                });
+                    });
+                    t = tryOnce(false, 6000);
+                }
+                finishRec(t, t == null ? "没听出来（内录和外放都试过了）" : null, wasPlaying);
             }
         }, "bg-rec").start();
     }
