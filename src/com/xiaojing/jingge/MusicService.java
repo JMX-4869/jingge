@@ -541,152 +541,194 @@ public class MusicService extends Service implements
         }
     }
 
+    /** 录一路 8 秒，inner=true 走内录，false 走麦克风 */
+    private byte[] recordOne(boolean inner, int ms) {
+        final int sr = 44100;
+        int total = sr * ms / 1000;
+        byte[] pcm = new byte[total * 2];
+        int got = 0;
+        android.media.AudioRecord r = null;
+        try {
+            if (inner) {
+                r = Capture.open(sr);
+            } else {
+                int min = android.media.AudioRecord.getMinBufferSize(sr,
+                        android.media.AudioFormat.CHANNEL_IN_MONO,
+                        android.media.AudioFormat.ENCODING_PCM_16BIT);
+                android.media.AudioRecord tmp = null;
+                try {
+                    tmp = new android.media.AudioRecord(
+                            android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                            sr, android.media.AudioFormat.CHANNEL_IN_MONO,
+                            android.media.AudioFormat.ENCODING_PCM_16BIT,
+                            Math.max(min, 4096));
+                    if (tmp.getState() != android.media.AudioRecord.STATE_INITIALIZED) {
+                        try {
+                            tmp.release();
+                        } catch (Throwable ignored) {
+                        }
+                        tmp = null;
+                    }
+                } catch (Throwable ignored) {
+                    tmp = null;
+                }
+                if (tmp == null) {
+                    tmp = new android.media.AudioRecord(
+                            android.media.MediaRecorder.AudioSource.MIC,
+                            sr, android.media.AudioFormat.CHANNEL_IN_MONO,
+                            android.media.AudioFormat.ENCODING_PCM_16BIT,
+                            Math.max(min, 4096));
+                }
+                r = tmp;
+            }
+            if (r == null) return null;
+            r.startRecording();
+            while (got < pcm.length) {
+                int n = r.read(pcm, got, Math.min(4096, pcm.length - got));
+                if (n <= 0) break;
+                got += n;
+            }
+        } catch (Throwable t) {
+            lastErr = t.getMessage();
+            got = 0;
+        } finally {
+            try {
+                if (r != null) {
+                    r.stop();
+                    r.release();
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        if (got <= 0) return null;
+        byte[] out = new byte[got];
+        System.arraycopy(pcm, 0, out, 0, got);
+        return out;
+    }
+
+    /** 两路叠一起：短的补零，逐样本相加，防削波 */
+    private byte[] mix(byte[] a, byte[] b) {
+        if (a == null || a.length == 0) return b;
+        if (b == null || b.length == 0) return a;
+        int len = Math.max(a.length, b.length);
+        byte[] out = new byte[len];
+        for (int i = 0; i < len; i += 2) {
+            int va = i + 1 < a.length ? (short) ((a[i] & 0xFF) | (a[i + 1] << 8)) : 0;
+            int vb = i + 1 < b.length ? (short) ((b[i] & 0xFF) | (b[i + 1] << 8)) : 0;
+            int v = va + vb;
+            if (v > 32767) v = 32767;
+            if (v < -32768) v = -32768;
+            out[i] = (byte) (v & 0xFF);
+            if (i + 1 < len) out[i + 1] = (byte) ((v >> 8) & 0xFF);
+        }
+        return out;
+    }
+
+    private int rmsOf(byte[] pcm) {
+        if (pcm == null) return 0;
+        int n = pcm.length / 2;
+        if (n == 0) return 0;
+        long sum = 0;
+        for (int i = 0; i < n; i++) {
+            short v = (short) ((pcm[i * 2] & 0xFF) | (pcm[i * 2 + 1] << 8));
+            sum += (long) v * v;
+        }
+        return (int) Math.sqrt((double) sum / n);
+    }
+
     /** 点通知栏/悬浮球：后台录 8 秒去认，不弹任何界面 */
     private void startBgRec() {
         if (recBusy) {
             toastMain("还在听，等一下");
             return;
         }
-        final boolean inner = "capture".equals(Ai.prefs(this).getString("rec_src", "mic"));
-        if (inner) {
-            if (!Capture.ready()) {
+        final String src = Ai.prefs(this).getString("rec_src", "mic");
+        boolean capOn = "capture".equals(src) || "mix".equals(src);
+        final boolean micOn = !"capture".equals(src);
+        if (capOn && !Capture.ready()) {
+            if (!micOn) {
                 toastMain("内录还没授权：设置 → 听音识曲 → 授权内录");
                 return;
             }
-            promoteCaptureForeground();
-        } else if (Build.VERSION.SDK_INT >= 23
+            capOn = false;   // 想内外一起但没授权，就先用麦克风
+            toastMain("内录没授权，这次只听麦克风；要到设置里点一下授权");
+        }
+        if (micOn && Build.VERSION.SDK_INT >= 23
                 && checkSelfPermission("android.permission.RECORD_AUDIO")
                 != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             toastMain("没给麦克风权限：设置 → 应用 → 鲸歌 → 权限 → 麦克风");
             return;
         }
+        final boolean useCap = capOn;
+        final boolean useMic = micOn;
         recBusy = true;
         final boolean wasPlaying = playing;
         if (playing) pause();
         recStatus = "正在听… 0s";
-        promoteMicForeground();
+        if (useCap) promoteCaptureForeground();
+        else promoteMicForeground();
         updateNotification();
         showRecCard();
-        toastMain("开始听，8 秒别停");
+        toastMain("开始听，8 秒别停（" + (useMic && useCap ? "内外一起"
+                : useCap ? "内录" : "麦克风") + "）");
 
         new Thread(new Runnable() {
             @Override
             public void run() {
-                final int sr = 44100;
-                final int total = sr * 8;
-                byte[] pcm = new byte[total * 2];
-                int got = 0;
-                android.media.AudioRecord r = null;
-                try {
-                    int min = android.media.AudioRecord.getMinBufferSize(sr,
-                            android.media.AudioFormat.CHANNEL_IN_MONO,
-                            android.media.AudioFormat.ENCODING_PCM_16BIT);
-                    if (inner) {
-                        r = Capture.open(sr);
-                        if (r == null) {
-                            throw new IllegalStateException("内录起不来（这个播放器可能不允许被录）");
+                final byte[][] capBuf = new byte[1][];
+                Thread capThread = null;
+                if (useCap) {
+                    capThread = new Thread(new Runnable() {
+                        public void run() {
+                            capBuf[0] = recordOne(true, 8000);
                         }
-                        r.startRecording();
-                        while (got < total * 2) {
-                            int n = r.read(pcm, got, Math.min(4096, total * 2 - got));
-                            if (n <= 0) break;
-                            got += n;
-                            final int secs = Math.min(7, got / 2 / sr);
-                            main.post(new Runnable() {
-                                public void run() {
-                                    if (!recBusy) return;
-                                    recStatus = "正在听（内录）… " + secs + "s";
-                                    updateNotification();
-                                    showRecCard();
+                    }, "cap-rec");
+                    capThread.start();
+                }
+                byte[] micBuf = null;
+                if (useMic) micBuf = recordOne(false, 8000);
+                if (capThread != null) {
+                    try {
+                        capThread.join(9000);
+                    } catch (Throwable ignored) {
+                    }
+                }
+                final byte[] mic = micBuf;
+                byte[] clip = useCap && useMic ? mix(micBuf, capBuf[0])
+                        : useCap ? capBuf[0] : micBuf;
+
+                int rms = rmsOf(clip);
+                if (clip == null || clip.length == 0 || rms < 60) {
+                    // 混合失败时，还有一路有声音的话就单独再用那一路
+                    if (rmsOf(mic) >= 60) {
+                        clip = mic;
+                        rms = rmsOf(mic);
+                    } else if (rmsOf(capBuf[0]) >= 60) {
+                        clip = capBuf[0];
+                        rms = rmsOf(clip);
+                    } else {
+                        finishRec(null, "两路都是静音（音量 " + rms
+                                + "）—— 检查麦克风权限，或那个 App 不允许被录", wasPlaying);
+                        return;
+                    }
+                }
+                final byte[] use = clip;
+                Recognize.identify(MusicService.this, use, 44100, new Recognize.Cb() {
+                    @Override
+                    public void onTrack(Recognize.Track t, String error) {
+                        // 内外混过还是没认出来，再拿麦克风那一路单独试一次
+                        if (t == null && useCap && useMic && mic != null && rmsOf(mic) >= 60) {
+                            Recognize.identify(MusicService.this, mic, 44100, new Recognize.Cb() {
+                                @Override
+                                public void onTrack(Recognize.Track t2, String e2) {
+                                    finishRec(t2, e2, wasPlaying);
                                 }
                             });
+                            return;
                         }
-                        throw new InnerDone();
+                        finishRec(t, error, wasPlaying);
                     }
-                    android.media.AudioRecord tmp = null;
-                    try {
-                        tmp = new android.media.AudioRecord(
-                                android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
-                                sr, android.media.AudioFormat.CHANNEL_IN_MONO,
-                                android.media.AudioFormat.ENCODING_PCM_16BIT,
-                                Math.max(min, 4096));
-                        if (tmp.getState() != android.media.AudioRecord.STATE_INITIALIZED) {
-                            try {
-                                tmp.release();
-                            } catch (Throwable ignored) {
-                            }
-                            tmp = null;
-                        }
-                    } catch (Throwable ignored) {
-                        tmp = null;
-                    }
-                    if (tmp == null) {
-                        tmp = new android.media.AudioRecord(
-                                android.media.MediaRecorder.AudioSource.MIC,
-                                sr, android.media.AudioFormat.CHANNEL_IN_MONO,
-                                android.media.AudioFormat.ENCODING_PCM_16BIT,
-                                Math.max(min, 4096));
-                    }
-                    r = tmp;
-                    r.startRecording();
-                    while (got < total * 2) {
-                        int n = r.read(pcm, got, Math.min(4096, total * 2 - got));
-                        if (n <= 0) break;
-                        got += n;
-                        final int secs = Math.min(7, got / 2 / sr);
-                        main.post(new Runnable() {
-                            public void run() {
-                                if (!recBusy) return;
-                                recStatus = "正在听… " + secs + "s";
-                                updateNotification();
-                                showRecCard();
-                            }
-                        });
-                    }
-                } catch (InnerDone ignored) {
-                    // 内录已经录完，正常往下走
-                } catch (Throwable t) {
-                    got = 0;
-                    if (inner) lastErr = String.valueOf(t.getMessage());
-                } finally {
-                    try {
-                        if (r != null) {
-                            r.stop();
-                            r.release();
-                        }
-                    } catch (Throwable ignored) {
-                    }
-                }
-                if (got <= 0) {
-                    finishRec(null, inner
-                            ? ("内录没拿到声音" + (lastErr == null ? "" : "：" + lastErr))
-                            : "录不到声音（麦克风被别的应用占着？）", wasPlaying);
-                    return;
-                }
-                long sum = 0;
-                int n2 = got / 2;
-                for (int i = 0; i < n2; i++) {
-                    short v = (short) ((pcm[i * 2] & 0xFF) | (pcm[i * 2 + 1] << 8));
-                    sum += (long) v * v;
-                }
-                int rms = n2 == 0 ? 0 : (int) Math.sqrt((double) sum / n2);
-                if (rms < 60) {
-                    finishRec(null, "录到的几乎是静音（音量 " + rms
-                            + "）—— 检查麦克风权限，或者别贴太近", wasPlaying);
-                    return;
-                }
-                byte[] clip = new byte[got];
-                System.arraycopy(pcm, 0, clip, 0, got);
-                try {
-                    Recognize.identify(MusicService.this, clip, sr, new Recognize.Cb() {
-                        @Override
-                        public void onTrack(Recognize.Track t, String error) {
-                            finishRec(t, error, wasPlaying);
-                        }
-                    });
-                } catch (Throwable t) {
-                    finishRec(null, t.getMessage(), wasPlaying);
-                }
+                });
             }
         }, "bg-rec").start();
     }

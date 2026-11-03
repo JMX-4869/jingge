@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.68";
+    private static final String VER = "0.69";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -2104,8 +2104,9 @@ public class MainActivity extends Activity implements MusicService.Listener {
         box.addView(srcRow);
         srcRow.addView(srcChip(d, "外放（麦克风）", "mic", src));
         srcRow.addView(srcChip(d, "手机内录", "capture", src));
+        srcRow.addView(srcChip(d, "内外一起", "mix", src));
 
-        if ("capture".equals(src)) {
+        if ("capture".equals(src) || "mix".equals(src)) {
             TextView capState = text(Capture.ready()
                             ? "内录已授权，可以用了"
                             : (Capture.supported() ? "还没授权 → 点这里让系统确认"
@@ -2124,8 +2125,9 @@ public class MainActivity extends Activity implements MusicService.Listener {
             });
             box.addView(capState);
 
-            TextView capNote = text("系统会弹「开始录制或投放」——同意后，"
-                    + "只有允许被录的 App 的声音才抓得到；戴耳机的歌也能认。", 10, Ui.DIM, false);
+            TextView capNote = text("内外一起 = 麦克风（外放/有人在唱）+ 手机内部声音，两路混在一起送去认；"
+                    + "混着认不出来时会自动单独再用麦克风试一次。"
+                    + "系统会弹「开始录制或投放」，同意后才抓得到内部声音。", 10, Ui.DIM, false);
             capNote.setLineSpacing(dp(3), 1f);
             box.addView(capNote);
         }
