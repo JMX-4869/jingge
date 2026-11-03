@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.59";
+    private static final String VER = "0.60";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -258,6 +258,9 @@ public class MainActivity extends Activity implements MusicService.Listener {
             } else {
                 showOverlayHelp();
             }
+        } else if (MusicService.notifBlocked
+                && !Ai.prefs(this).getBoolean("notif_hint", false)) {
+            showNotifGuide();
         } else if (BallService.wanted(this) && !BallService.running
                 && (android.os.Build.VERSION.SDK_INT < 23
                 || android.provider.Settings.canDrawOverlays(this))) {
@@ -1396,6 +1399,55 @@ public class MainActivity extends Activity implements MusicService.Listener {
             pendingBall = true;
         }
         if (svc != null) svc.refreshNotification();
+    }
+
+    /** 通知被系统关了：主动说一次，别等着用户自己发现 */
+    private void showNotifGuide() {
+        final Dialog d = new Dialog(this);
+        LinearLayout box = dialogBox();
+        box.addView(text("通知栏被关了", 15, Ui.TEXT, true));
+        TextView t = text("系统里鲸歌的通知是关着的，所以播放时通知栏什么都没有。"
+                + "打开它就能有上一首/下一首/听音识曲那几个按钮。", 12, Ui.MUTED, false);
+        t.setPadding(0, dp(10), 0, dp(12));
+        t.setLineSpacing(dp(3), 1f);
+        box.addView(t);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.END);
+        box.addView(row);
+
+        TextView later = text("以后再说", 13, Ui.MUTED, false);
+        later.setPadding(dp(12), dp(8), dp(16), dp(8));
+        later.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                Ai.prefs(MainActivity.this).edit().putBoolean("notif_hint", true).apply();
+                d.dismiss();
+            }
+        });
+        row.addView(later);
+
+        TextView go = text("去打开", 13, Ui.ACCENT, true);
+        go.setPadding(dp(12), dp(8), dp(12), dp(8));
+        go.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                Ai.prefs(MainActivity.this).edit().putBoolean("notif_hint", true).apply();
+                d.dismiss();
+                try {
+                    startActivity(new Intent(
+                            android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                            .putExtra("android.provider.extra.APP_PACKAGE", getPackageName())
+                            .putExtra("app_package", getPackageName())
+                            .putExtra("app_uid", getApplicationInfo().uid));
+                } catch (Throwable x) {
+                    Toast.makeText(MainActivity.this, "打不开通知设置", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+        row.addView(go);
+
+        d.setContentView(box);
+        dialogWindow(d);
+        d.show();
     }
 
     /** 通知栏体检：说不出原因就别让用户瞎试 */

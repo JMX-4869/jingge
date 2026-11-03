@@ -50,6 +50,7 @@ public class MusicService extends Service implements
 
     private static final String CHANNEL = "playback";
     static boolean fg = false;
+    static volatile boolean notifBlocked = false;   // 系统把通知关了
     private volatile boolean recBusy = false;
     private volatile String recStatus = null;
     static String lastErr = null;
@@ -877,11 +878,21 @@ public class MusicService extends Service implements
             foreground = true;
             fg = true;
             lastErr = null;
+            if (Build.VERSION.SDK_INT >= 24 && nm != null) {
+                notifBlocked = !nm.areNotificationsEnabled();
+            }
             if (session != null) session.setActive(true);
         } catch (Throwable t) {
             foreground = false;
             fg = false;
             lastErr = t.getClass().getSimpleName() + "：" + t.getMessage();
+            final String why = lastErr;
+            main.post(new Runnable() {
+                public void run() {
+                    Toast.makeText(MusicService.this, "通知起不来：" + why,
+                            Toast.LENGTH_LONG).show();
+                }
+            });
         }
     }
 
