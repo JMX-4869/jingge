@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.49";
+    private static final String VER = "0.50";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -1890,6 +1890,17 @@ public class MainActivity extends Activity implements MusicService.Listener {
         krow.addView(keepChip(d, "不息屏", true));
         krow.addView(keepChip(d, "允许息屏", false));
 
+        TextView ml = text("默认播放模式（启动时生效）", 11, Ui.DIM, false);
+        ml.setPadding(0, dp(14), 0, dp(6));
+        box.addView(ml);
+
+        LinearLayout mrow = new LinearLayout(this);
+        mrow.setOrientation(LinearLayout.HORIZONTAL);
+        box.addView(mrow);
+        mrow.addView(modeChip(d, "列表循环", PlayQueue.MODE_LIST));
+        mrow.addView(modeChip(d, "单曲循环", PlayQueue.MODE_ONE));
+        mrow.addView(modeChip(d, "随机", PlayQueue.MODE_SHUFFLE));
+
         TextView tl = text("主题 · 点一下就用", 11, Ui.DIM, false);
         tl.setPadding(0, dp(14), 0, dp(4));
         box.addView(tl);
@@ -2012,6 +2023,30 @@ public class MainActivity extends Activity implements MusicService.Listener {
         d.setContentView(sv);
         dialogWindowTall(d);
         d.show();
+    }
+
+    private int playMode() {
+        return Ai.prefs(this).getInt("play_mode", PlayQueue.MODE_LIST);
+    }
+
+    private View modeChip(final Dialog d, final String name, final int mode) {
+        final boolean on = playMode() == mode;
+        TextView t = text(name, 13, on ? Ui.ACCENT : Ui.MUTED, on);
+        t.setPadding(dp(14), dp(9), dp(14), dp(9));
+        t.setBackground(Ui.roundStroke(0, on ? Ui.ACCENT : Ui.LINE, dp(10), dp(1)));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, 0, dp(8), 0);
+        t.setLayoutParams(lp);
+        t.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                Ai.prefs(MainActivity.this).edit().putInt("play_mode", mode).apply();
+                if (svc != null) svc.setMode(mode);
+                d.dismiss();
+                Toast.makeText(MainActivity.this, "默认改成：" + name, Toast.LENGTH_SHORT).show();
+            }
+        });
+        return t;
     }
 
     private View keepChip(final Dialog d, final String name, final boolean on) {

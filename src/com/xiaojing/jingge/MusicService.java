@@ -95,6 +95,9 @@ public class MusicService extends Service implements
                 .build();
         createChannel();
 
+        // 默认播放模式：设置在启动时生效
+        queue.setMode(Ai.prefs(this).getInt("play_mode", PlayQueue.MODE_LIST));
+
         session = new MediaSession(this, "JingGe");
         session.setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS
                 | MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
@@ -370,6 +373,12 @@ public class MusicService extends Service implements
             }
             updateSession();
         }
+    }
+
+    public void setMode(int m) {
+        queue.setMode(m);
+        updateSession();
+        notifyChanged();
     }
 
     public void cycleMode() {
