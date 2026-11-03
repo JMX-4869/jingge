@@ -53,6 +53,10 @@ public class MusicService extends Service implements
     static volatile boolean notifBlocked = false;   // 系统把通知关了
     private volatile boolean recBusy = false;
     private volatile String recStatus = null;
+    private Lyric lyric = null;
+    private long lyricId = -1;
+    private int lyricIdx = -2;
+    private String lyricLine = null;
     static String lastErr = null;
     private static final int NOTIF_ID = 1001;
 
@@ -317,6 +321,7 @@ public class MusicService extends Service implements
             playing = true;
             requestFocus();
             ensureForeground();
+            startLyricTick();
             updateAll();
         } catch (Throwable t) {
             playing = false;
@@ -393,6 +398,63 @@ public class MusicService extends Service implements
         queue.modeCycle();
         updateSession();
         notifyChanged();
+    }
+
+    private final Runnable lyricTick = new Runnable() {
+        @Override
+        public void run() {
+            if (!playing) return;
+            syncLyricLine();
+            main.postDelayed(this, 700);
+        }
+    };
+
+    private void startLyricTick() {
+        main.removeCallbacks(lyricTick);
+        main.post(lyricTick);
+    }
+
+    private void syncLyricLine() {
+        Song s = queue.current();
+        if (s == null) return;
+        if (lyricId != s.id) {
+            lyricId = s.id;
+            lyricIdx = -2;
+            String raw = LyricStore.read(this, s.id);
+            if (raw == null) raw = LyricStore.readAuto(this, s.id);
+            lyric = raw == null ? null : Lyric.parse(raw);
+            if (lyric != null && !lyric.synced) lyric = null;
+        }
+        if (lyric == null) {
+            if (lyricLine != null) {
+                lyricLine = null;
+                updateNotification();
+            }
+            return;
+        }
+        int pos = 0;
+        try {
+            if (mp != null && prepared) pos = mp.getCurrentPosition();
+        } catch (Throwable ignored) {
+        }
+        int idx = -1;
+        for (int i = 0; i < lyric.lines.size(); i++) {
+            if (lyric.lines.get(i).timeMs <= pos) idx = i;
+            else break;
+        }
+        if (idx == lyricIdx) return;
+        lyricIdx = idx;
+        if (idx < 0) {
+            lyricLine = null;
+        } else {
+            Lyric.Line l = lyric.lines.get(idx);
+            String t = l.text == null ? "" : l.text.trim();
+            if (l.trans != null && l.trans.trim().length() > 0) {
+                t = t.length() == 0 ? l.trans.trim() : t + " / " + l.trans.trim();
+            }
+            lyricLine = t.length() == 0 ? null : t;
+        }
+        updateNotification();
     }
 
     private void toastMain(String msg) {
@@ -548,6 +610,10 @@ public class MusicService extends Service implements
         Song s = queue.current();
         if (s == null) return;
         releasePlayer();
+        // 换歌了，先把上一首的歌词行清掉，等 tick 重新载入
+        lyricId = -1;
+        lyricIdx = -2;
+        lyricLine = null;
         preparing = true;
         pendingPlay = autoplay;
         try {
@@ -790,7 +856,8 @@ public class MusicService extends Service implements
         Song s = queue.current();
         String title = s == null ? "鲸歌" : s.title;
         String sub = recStatus != null ? recStatus
-                : (s == null ? "选一首开始" : s.subtitle());
+                : (lyricLine != null ? lyricLine
+                : (s == null ? "选一首开始" : s.subtitle()));
 
         Intent open = new Intent(this, MainActivity.class)
                 .setAction("open")
@@ -830,6 +897,7 @@ public class MusicService extends Service implements
                 .addAction(aPrev)
                 .addAction(aPlay)
                 .addAction(aNext);
+        if (Build.VERSION.SDK_INT >= 24 && s != null) b.setSubText(s.subtitle());
         if (withRec) b.addAction(aRec);
         b.setStyle(new Notification.MediaStyle()
                 .setMediaSession(session.getSessionToken())
