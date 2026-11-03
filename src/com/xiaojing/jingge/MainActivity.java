@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.39";
+    private static final String VER = "0.40";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -1403,6 +1403,14 @@ public class MainActivity extends Activity implements MusicService.Listener {
                 Toast.LENGTH_LONG).show();
     }
 
+    private void openUrl(String url) {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)));
+        } catch (Throwable t) {
+            Toast.makeText(this, "打不开浏览器", Toast.LENGTH_SHORT).show();
+        }
+    }
+
     private void showRecSettings() {
         final Dialog d = new Dialog(this);
         LinearLayout box = dialogBox();
@@ -1419,6 +1427,31 @@ public class MainActivity extends Activity implements MusicService.Listener {
         box.addView(prow);
         prow.addView(recChip(d, "ACRCloud", Recognize.P_ACR, cur));
         prow.addView(recChip(d, "AudD", Recognize.P_AUDD, cur));
+
+        LinearLayout openRow = new LinearLayout(this);
+        openRow.setOrientation(LinearLayout.HORIZONTAL);
+        openRow.setPadding(0, dp(4), 0, dp(2));
+        box.addView(openRow);
+
+        TextView openAcr = text("去 ACRCloud 注册 ↗", 12, Ui.ACCENT, false);
+        openAcr.setPadding(0, dp(8), dp(18), dp(8));
+        openAcr.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                openUrl("https://console.acrcloud.com/signup");
+            }
+        });
+        openRow.addView(openAcr);
+
+        TextView openAudd = text("去 AudD 注册 ↗", 12, Ui.ACCENT, false);
+        openAudd.setPadding(0, dp(8), 0, dp(8));
+        openAudd.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                openUrl("https://dashboard.audd.io/");
+            }
+        });
+        openRow.addView(openAudd);
 
         TextView hl = text("ACRCloud", 11, Ui.DIM, false);
         hl.setPadding(0, dp(14), 0, dp(6));
