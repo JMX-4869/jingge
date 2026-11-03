@@ -255,6 +255,7 @@ public class BallService extends Service {
 
         try {
             wm.addView(ball, ballLp);
+            scheduleHide();   // 刚出来也照样到点自己收边，不用先拖一下
         } catch (Throwable t) {
             stopSelf();
         }
