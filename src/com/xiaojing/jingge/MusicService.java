@@ -21,6 +21,7 @@ import android.net.Uri;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Handler;
+import android.widget.Toast;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
@@ -45,9 +46,12 @@ public class MusicService extends Service implements
     public static final String ACT_NEXT = "com.xiaojing.jingge.NEXT";
     public static final String ACT_PREV = "com.xiaojing.jingge.PREV";
     public static final String ACT_STOP = "com.xiaojing.jingge.STOP";
+    public static final String ACT_REC = "com.xiaojing.jingge.RECOGNIZE";
 
     private static final String CHANNEL = "playback";
     static boolean fg = false;
+    private volatile boolean recBusy = false;
+    private volatile String recStatus = null;
     static String lastErr = null;
     private static final int NOTIF_ID = 1001;
 
@@ -180,6 +184,7 @@ public class MusicService extends Service implements
             else if (ACT_NEXT.equals(a)) next(false);
             else if (ACT_PREV.equals(a)) prev();
             else if (ACT_STOP.equals(a)) stopAll();
+            else if (ACT_REC.equals(a)) startBgRec();
         }
         return START_NOT_STICKY;
     }
@@ -387,6 +392,128 @@ public class MusicService extends Service implements
         queue.modeCycle();
         updateSession();
         notifyChanged();
+    }
+
+    private void toastMain(String msg) {
+        Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+    }
+
+    /** 录音要有 mic 类型的前台服务（Android 11+ 才认这个类型） */
+    private void promoteMicForeground() {
+        if (Build.VERSION.SDK_INT < 30) return;
+        try {
+            startForeground(NOTIF_ID, buildNotification(),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                            | ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);
+        } catch (Throwable t) {
+            lastErr = "mic 前台：" + t.getMessage();
+        }
+    }
+
+    /** 点通知栏/悬浮球：后台录 8 秒去认，不弹任何界面 */
+    private void startBgRec() {
+        if (recBusy) {
+            toastMain("还在听，等一下");
+            return;
+        }
+        if (checkSelfPermission("android.permission.RECORD_AUDIO")
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            toastMain("没给麦克风权限：设置 → 应用 → 鲸歌 → 权限 → 麦克风");
+            return;
+        }
+        recBusy = true;
+        final boolean wasPlaying = playing;
+        if (playing) pause();
+        recStatus = "正在听… 0s";
+        promoteMicForeground();
+        updateNotification();
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final int sr = 44100;
+                final int total = sr * 8;
+                byte[] pcm = new byte[total * 2];
+                int got = 0;
+                android.media.AudioRecord r = null;
+                try {
+                    int min = android.media.AudioRecord.getMinBufferSize(sr,
+                            android.media.AudioFormat.CHANNEL_IN_MONO,
+                            android.media.AudioFormat.ENCODING_PCM_16BIT);
+                    r = new android.media.AudioRecord(android.media.MediaRecorder.AudioSource.MIC,
+                            sr, android.media.AudioFormat.CHANNEL_IN_MONO,
+                            android.media.AudioFormat.ENCODING_PCM_16BIT,
+                            Math.max(min, 4096));
+                    r.startRecording();
+                    while (got < total * 2) {
+                        int n = r.read(pcm, got, Math.min(4096, total * 2 - got));
+                        if (n <= 0) break;
+                        got += n;
+                        final int secs = Math.min(7, got / 2 / sr);
+                        main.post(new Runnable() {
+                            public void run() {
+                                if (!recBusy) return;
+                                recStatus = "正在听… " + secs + "s";
+                                updateNotification();
+                            }
+                        });
+                    }
+                } catch (Throwable t) {
+                    got = 0;
+                } finally {
+                    try {
+                        if (r != null) {
+                            r.stop();
+                            r.release();
+                        }
+                    } catch (Throwable ignored) {
+                    }
+                }
+                if (got <= 0) {
+                    finishRec(null, "录不到声音（麦克风被别的应用占着？）", wasPlaying);
+                    return;
+                }
+                byte[] clip = new byte[got];
+                System.arraycopy(pcm, 0, clip, 0, got);
+                try {
+                    Recognize.identify(MusicService.this, clip, sr, new Recognize.Cb() {
+                        @Override
+                        public void onTrack(Recognize.Track t, String error) {
+                            finishRec(t, error, wasPlaying);
+                        }
+                    });
+                } catch (Throwable t) {
+                    finishRec(null, t.getMessage(), wasPlaying);
+                }
+            }
+        }, "bg-rec").start();
+    }
+
+    private void finishRec(Recognize.Track t, String err, final boolean resume) {
+        recBusy = false;
+        if (t != null) {
+            String title = t.title == null || t.title.length() == 0 ? "识别到一首歌" : t.title;
+            recStatus = t.artist == null || t.artist.length() == 0
+                    ? "识别到：" + title
+                    : "识别到：" + title + " · " + t.artist;
+        } else {
+            recStatus = err == null ? "没听出来" : ("没听出来：" + err);
+        }
+        final String say = recStatus;
+        main.post(new Runnable() {
+            public void run() {
+                toastMain(say);
+                updateNotification();
+                if (resume && !playing) play();
+                main.postDelayed(new Runnable() {
+                    public void run() {
+                        recStatus = null;
+                        updateNotification();
+                        if (!playing && queue.current() == null) stopSelf();
+                    }
+                }, 8000);
+            }
+        });
     }
 
     private void restart() {
@@ -660,7 +787,8 @@ public class MusicService extends Service implements
     private Notification buildNotification() {
         Song s = queue.current();
         String title = s == null ? "鲸歌" : s.title;
-        String sub = s == null ? "选一首开始" : s.subtitle();
+        String sub = recStatus != null ? recStatus
+                : (s == null ? "选一首开始" : s.subtitle());
 
         Intent open = new Intent(this, MainActivity.class)
                 .setAction("open")
@@ -676,11 +804,9 @@ public class MusicService extends Service implements
         Notification.Action aNext = new Notification.Action.Builder(
                 R.drawable.ic_next, "下一首", servicePi(ACT_NEXT, 3)).build();
         boolean withRec = !"ball".equals(MainActivity.recEntry(this));
-        Intent rec = new Intent(this, RecognizeActivity.class)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        PendingIntent recPi = PendingIntent.getActivity(this, 6, rec, piFlags());
         Notification.Action aRec = new Notification.Action.Builder(
-                R.drawable.stat_music, "听音识曲", recPi).build();
+                R.drawable.stat_music, recBusy ? "正在听…" : "听音识曲",
+                servicePi(ACT_REC, 6)).build();
 
         Notification.Builder b;
         if (Build.VERSION.SDK_INT >= 26) {

@@ -364,11 +364,17 @@ public class BallService extends Service {
     }
 
     private void openRecognize() {
+        // 后台认，不弹界面：交给播放服务去录，结果走通知和 toast
         try {
-            Intent i = new Intent(this, RecognizeActivity.class);
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            startActivity(i);
-        } catch (Throwable ignored) {
+            Intent i = new Intent(this, MusicService.class).setAction(MusicService.ACT_REC);
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(i);
+            else startService(i);
+        } catch (Throwable t) {
+            try {
+                startActivity(new Intent(this, RecognizeActivity.class)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            } catch (Throwable ignored) {
+            }
         }
     }
 
