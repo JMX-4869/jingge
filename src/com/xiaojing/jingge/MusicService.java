@@ -324,6 +324,14 @@ public class MusicService extends Service implements
         }
     }
 
+    public Song queueSongAt(int i) {
+        return i >= 0 && i < queue.size() ? queue.get(i) : null;
+    }
+
+    public int queueIndex() {
+        return queue.index();
+    }
+
     public void playAt(int index) {
         if (!queue.select(index)) return;
         openCurrent(true);

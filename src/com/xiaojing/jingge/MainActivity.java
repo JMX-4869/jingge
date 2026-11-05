@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.71";
+    private static final String VER = "0.72";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -681,8 +681,25 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     // ───────────────────────── 播放页 ─────────────────────────
 
+    /** 进播放页先把键盘收掉，搜索框也别留着焦点 */
+    private void hideKeyboard() {
+        try {
+            if (search != null) {
+                search.clearFocus();
+                android.view.inputmethod.InputMethodManager imm =
+                        (android.view.inputmethod.InputMethodManager)
+                                getSystemService(INPUT_METHOD_SERVICE);
+                if (imm != null) imm.hideSoftInputFromWindow(search.getWindowToken(), 0);
+            }
+            getWindow().setSoftInputMode(
+                    android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
+        } catch (Throwable ignored) {
+        }
+    }
+
     private void openPlayer() {
         if (svc == null || svc.currentSong() == null) return;
+        hideKeyboard();
         if (!playerOpen) {
             playerOpen = true;
             playerPage.setVisibility(View.VISIBLE);
@@ -2927,6 +2944,17 @@ public class MainActivity extends Activity implements MusicService.Listener {
         header.addView(new View(this), new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
+        Icons now = new Icons(this).icon(Icons.PLAY).color(Ui.ACCENT).ratio(0.42f);
+        now.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                jumpToPlaying();
+            }
+        });
+        LinearLayout.LayoutParams nlp = new LinearLayout.LayoutParams(dp(30), dp(30));
+        nlp.setMargins(0, 0, dp(4), 0);
+        header.addView(now, nlp);
+
         TextView batchBtn = text("补全", 11, Ui.ACCENT, false);
         batchBtn.setPadding(dp(8), dp(8), dp(8), dp(8));
         batchBtn.setOnClickListener(new View.OnClickListener() {
@@ -3480,12 +3508,112 @@ public class MainActivity extends Activity implements MusicService.Listener {
         listIcon.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                closePlayer();
+                showQueue();
             }
         });
         ctrl.addView(listIcon, new LinearLayout.LayoutParams(0, dp(48), 1f));
 
         return p;
+    }
+
+    /** 播放页那个 ≡：把当前播放队列摊开，点哪首放哪首 */
+    private void showQueue() {
+        if (svc == null || svc.queueSize() <= 0) {
+            Toast.makeText(this, "队列是空的", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final Dialog d = new Dialog(this);
+        LinearLayout box = dialogBox();
+        final LinearLayout wrap = new LinearLayout(this);
+        wrap.setOrientation(LinearLayout.VERTICAL);
+        box.addView(wrap);
+
+        TextView title = text("播放队列 · " + svc.queueSize() + " 首", 15, Ui.TEXT, true);
+        title.setPadding(0, 0, 0, dp(10));
+        wrap.addView(title);
+
+        final android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        final LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        sv.addView(list);
+        int h = Math.min(dp(420), dp(52) * Math.min(svc.queueSize(), 8));
+        wrap.addView(sv, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, h));
+
+        final int cur = svc.queueIndex();
+        for (int i = 0; i < svc.queueSize(); i++) {
+            final int idx = i;
+            Song sg = svc.queueSongAt(i);
+            if (sg == null) continue;
+            boolean on = i == cur;
+            TextView row = text((i + 1) + ". " + sg.title, 13,
+                    on ? Ui.ACCENT : Ui.TEXT, on);
+            row.setSingleLine(true);
+            row.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            row.setPadding(dp(4), dp(11), dp(4), dp(11));
+            row.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) {
+                    svc.playAt(idx);
+                    d.dismiss();
+                }
+            });
+            list.addView(row);
+        }
+
+        LinearLayout frow = new LinearLayout(this);
+        frow.setGravity(Gravity.END);
+        wrap.addView(frow);
+        TextView close = text("关闭", 13, Ui.MUTED, false);
+        close.setPadding(dp(12), dp(10), dp(12), dp(4));
+        close.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                d.dismiss();
+            }
+        });
+        frow.addView(close);
+
+        d.setContentView(box);
+        dialogWindow(d);
+        d.show();
+        // 滚到正在放的那首
+        if (cur > 0) {
+            sv.post(new Runnable() {
+                public void run() {
+                    sv.scrollTo(0, cur * dp(52) - dp(52) * 2);
+                }
+            });
+        }
+    }
+
+    /** 列表里直接滚到正在放的那首 */
+    private void jumpToPlaying() {
+        if (svc == null || svc.currentSong() == null) {
+            Toast.makeText(this, "还没有在放的歌", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (mode != MODE_SONG) {
+            setMode(MODE_SONG);
+            if (search != null) search.setText("");
+            applyQuery("");
+        }
+        final long id = svc.currentSong().id;
+        int hit = -1;
+        for (int i = 0; i < display.size(); i++) {
+            if (display.get(i).id == id) {
+                hit = i;
+                break;
+            }
+        }
+        if (hit < 0) {
+            Toast.makeText(this, "当前这首歌不在这个列表里", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final int pos = hit;
+        listView.post(new Runnable() {
+            public void run() {
+                listView.setSelectionFromTop(pos, dp(60));
+            }
+        });
     }
 
     // ───────────────────────── 列表 ─────────────────────────
