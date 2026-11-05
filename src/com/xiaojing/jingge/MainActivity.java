@@ -69,7 +69,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
 
     private static final int REQ_PERM = 41;
     private static final String PREFS = "jingge";
-    private static final String VER = "0.72";
+    private static final String VER = "0.73";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final List<Song> all = new ArrayList<Song>();
@@ -125,6 +125,10 @@ public class MainActivity extends Activity implements MusicService.Listener {
     private TextView emptyTitle, emptySub, emptyBtn;
     private View emptyBox, miniBar;
     private CoverView miniCover;
+    private View miniBar2;
+    private CoverView miniCover2;
+    private TextView miniTitle2, miniArtist2;
+    private Icons miniPlay2;
     private TextView miniTitle, miniArtist;
     private Icons miniPlay;
     private EditText search;
@@ -502,6 +506,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
         boolean has = cur != null;
 
         miniBar.setVisibility(has ? View.VISIBLE : View.GONE);
+        if (miniBar2 != null) miniBar2.setVisibility(has ? View.VISIBLE : View.GONE);
         nowBox.setVisibility(has ? View.VISIBLE : View.GONE);
         if (has) {
             miniTitle.setText(cur.title);
@@ -509,8 +514,12 @@ public class MainActivity extends Activity implements MusicService.Listener {
             nowTitle.setText(cur.title);
             miniCover.setPlaceholder(cur.title);
             vinyl.setPlaceholder(cur.title);
+            if (miniTitle2 != null) miniTitle2.setText(cur.title);
+            if (miniArtist2 != null) miniArtist2.setText(cur.subtitle());
+            if (miniCover2 != null) miniCover2.setPlaceholder(cur.title);
         }
         miniPlay.icon(playing ? Icons.PAUSE : Icons.PLAY);
+        if (miniPlay2 != null) miniPlay2.icon(playing ? Icons.PAUSE : Icons.PLAY);
         bigPlay.icon(playing ? Icons.PAUSE : Icons.PLAY);
 
         if (has) {
@@ -578,12 +587,14 @@ public class MainActivity extends Activity implements MusicService.Listener {
             coverId = -1;
             vinyl.setCover(null);
             miniCover.setBmp(null);
+            if (miniCover2 != null) miniCover2.setBmp(null);
             return;
         }
         if (s.id == coverId) return;
         coverId = s.id;
         vinyl.setCover(null);
         miniCover.setBmp(null);
+        if (miniCover2 != null) miniCover2.setBmp(null);
         final long id = s.id;
         final Song song = s;
         new Thread(new Runnable() {
@@ -600,6 +611,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
                                 || svc.currentSong().id != id) return;
                         vinyl.setCover(local);
                         miniCover.setBmp(local);
+                        if (miniCover2 != null) miniCover2.setBmp(local);
                         if (local == null) fetchCoverOnline(song, id);
                     }
                 });
@@ -617,6 +629,7 @@ public class MainActivity extends Activity implements MusicService.Listener {
                 coverId = id;
                 vinyl.setCover(bm);
                 miniCover.setBmp(bm);
+                if (miniCover2 != null) miniCover2.setBmp(bm);
             }
         });
     }
@@ -1055,6 +1068,11 @@ public class MainActivity extends Activity implements MusicService.Listener {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         page.addView(sv, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        View mb = buildMini(true);
+        mb.setVisibility(View.GONE);
+        page.addView(mb, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         return page;
     }
 
@@ -3298,7 +3316,12 @@ public class MainActivity extends Activity implements MusicService.Listener {
     }
 
     private View buildMini() {
+        return buildMini(false);
+    }
+
+    private View buildMini(final boolean second) {
         FrameLayout wrap = new FrameLayout(this);
+        if (second) miniBar2 = wrap;
         wrap.setBackgroundColor(Ui.BG);
 
         View line = new View(this);
@@ -3321,8 +3344,9 @@ public class MainActivity extends Activity implements MusicService.Listener {
             }
         });
 
-        miniCover = new CoverView(this);
-        bar.addView(miniCover, new LinearLayout.LayoutParams(dp(40), dp(40)));
+        CoverView cv = new CoverView(this);
+        if (second) miniCover2 = cv; else miniCover = cv;
+        bar.addView(cv, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
@@ -3331,25 +3355,28 @@ public class MainActivity extends Activity implements MusicService.Listener {
         tlp.setMargins(dp(12), 0, dp(6), 0);
         bar.addView(texts, tlp);
 
-        miniTitle = text("", 13, Ui.TEXT, false);
-        miniTitle.setSingleLine(true);
-        miniTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        texts.addView(miniTitle);
+        TextView tt = text("", 13, Ui.TEXT, false);
+        tt.setSingleLine(true);
+        tt.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        if (second) miniTitle2 = tt; else miniTitle = tt;
+        texts.addView(tt);
 
-        miniArtist = text("", 11, Ui.MUTED, false);
-        miniArtist.setSingleLine(true);
-        miniArtist.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        miniArtist.setPadding(0, dp(2), 0, 0);
-        texts.addView(miniArtist);
+        TextView ar = text("", 11, Ui.MUTED, false);
+        ar.setSingleLine(true);
+        ar.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        ar.setPadding(0, dp(2), 0, 0);
+        if (second) miniArtist2 = ar; else miniArtist = ar;
+        texts.addView(ar);
 
-        miniPlay = new Icons(this).icon(Icons.PLAY).color(Ui.TEXT).ratio(0.46f);
-        miniPlay.setOnClickListener(new View.OnClickListener() {
+        final Icons mp = new Icons(this).icon(Icons.PLAY).color(Ui.TEXT).ratio(0.46f);
+        if (second) miniPlay2 = mp; else miniPlay = mp;
+        mp.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (svc != null) svc.toggle();
             }
         });
-        bar.addView(miniPlay, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        bar.addView(mp, new LinearLayout.LayoutParams(dp(44), dp(44)));
 
         Icons next = new Icons(this).icon(Icons.NEXT).color(Ui.MUTED).ratio(0.44f);
         next.setOnClickListener(new View.OnClickListener() {
