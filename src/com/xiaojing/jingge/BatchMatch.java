@@ -19,6 +19,8 @@ final class BatchMatch {
     private final Context app;
     private final List<Song> songs;
     private final Listener listener;
+    private final boolean wantLyric;
+    private final boolean wantCover;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final AtomicInteger cursor = new AtomicInteger(0);
     private final AtomicInteger done = new AtomicInteger(0);
@@ -31,9 +33,15 @@ final class BatchMatch {
     private volatile boolean finished;
 
     BatchMatch(Context c, List<Song> list, Listener l) {
+        this(c, list, true, true, l);
+    }
+
+    BatchMatch(Context c, List<Song> list, boolean wantLyric, boolean wantCover, Listener l) {
         app = c.getApplicationContext();
         songs = list;
         listener = l;
+        this.wantLyric = wantLyric;
+        this.wantCover = wantCover;
         total = list.size();
         workers = Math.min(3, Math.max(1, total));
         alive = new AtomicInteger(workers);
@@ -90,7 +98,7 @@ final class BatchMatch {
     }
 
     private void one(Song s) {
-        boolean needLyric = !LyricStore.has(app, s.id)
+        boolean needLyric = wantLyric && !LyricStore.has(app, s.id)
                 && !LyricStore.hasAuto(app, s.id)
                 && LyricFinder.peek(s.id) == null;
         if (needLyric) {
@@ -100,7 +108,7 @@ final class BatchMatch {
                 lyrics.incrementAndGet();
             }
         }
-        if (!CoverStore.hasCache(app, s.id) && !CoverStore.hasUser(app, s.id)) {
+        if (wantCover && !CoverStore.hasCache(app, s.id) && !CoverStore.hasUser(app, s.id)) {
             Bitmap bm = CoverFinder.fetchNow(app, s);
             if (bm != null) covers.incrementAndGet();
         }
